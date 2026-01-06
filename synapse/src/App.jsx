@@ -481,10 +481,11 @@ export default function App() {
       {/* Resource Detail Modal */}
       {selectedResource && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedResource(null)}>
-          <div className="bg-white rounded-2xl max-w-2xl w-full relative overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Sticky Close Button */}
             <button
               onClick={() => setSelectedResource(null)}
-              className="absolute top-4 right-4 text-white hover:text-slate-200 transition z-10 bg-black/20 rounded-full p-2"
+              className="sticky top-4 right-4 ml-auto mr-4 mt-4 text-white hover:text-slate-200 transition z-10 bg-black/20 rounded-full p-2 float-right"
             >
               <X size={24} />
             </button>
@@ -503,7 +504,7 @@ export default function App() {
             </div>
 
             {/* Content */}
-            <div className="p-8">
+            <div className="p-8 pb-12">
               {/* Título y detalles */}
               <h2 className="text-4xl font-extrabold mb-2 text-center text-slate-900 leading-tight">{selectedResource.title}</h2>
 
