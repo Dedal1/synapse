@@ -17,6 +17,8 @@ export default function App() {
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
   const [hasVotedThisSession, setHasVotedThisSession] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [resourceDescription, setResourceDescription] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const rotatingWords = ['valorar', 'reconocer', 'curar'];
 
@@ -86,24 +88,33 @@ export default function App() {
     }
   };
 
-  const processFileUpload = async (file) => {
+  const handleFileSelect = (file) => {
     if (!file) return;
-
-    if (!acceptedTerms) {
-      alert('Debes aceptar los términos para subir un archivo');
-      return;
-    }
 
     if (file.type !== 'application/pdf') {
       alert('Por favor selecciona un archivo PDF');
       return;
     }
 
-    const title = file.name.replace('.pdf', '');
+    setSelectedFile(file);
+    setIsDragging(false);
+  };
 
-    // Verificar duplicados
+  const handleFileInput = (e) => {
+    const file = e.target.files?.[0];
+    handleFileSelect(file);
+  };
+
+  const handlePublishResource = async () => {
+    if (!selectedFile || !resourceDescription.trim() || !acceptedTerms) {
+      return;
+    }
+
+    const title = selectedFile.name.replace('.pdf', '');
+
     setUploading(true);
     try {
+      // Verificar duplicados
       const isDuplicate = await checkDuplicateTitle(title);
       if (isDuplicate) {
         alert('Este archivo ya ha sido subido anteriormente');
@@ -111,22 +122,22 @@ export default function App() {
         return;
       }
 
-      await uploadPDF(file, user);
+      await uploadPDF(selectedFile, user, resourceDescription);
       await loadResources();
+
+      // Reset form
       setShowUploadModal(false);
-      setIsDragging(false);
+      setSelectedFile(null);
+      setResourceDescription('');
       setAcceptedTerms(false);
+      setIsDragging(false);
+
       alert('PDF subido exitosamente!');
     } catch (error) {
       alert('Error al subir el PDF: ' + error.message);
     } finally {
       setUploading(false);
     }
-  };
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    await processFileUpload(file);
   };
 
   const handleDragOver = (e) => {
@@ -141,14 +152,13 @@ export default function App() {
     setIsDragging(false);
   };
 
-  const handleDrop = async (e) => {
+  const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
 
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      await processFileUpload(files[0]);
+      handleFileSelect(files[0]);
     }
   };
 
@@ -413,7 +423,14 @@ export default function App() {
                 {/* Card Content */}
                 <div className="p-6">
                   {/* Title */}
-                  <h3 className="font-bold text-xl text-slate-900 mb-3 line-clamp-2">{resource.title}</h3>
+                  <h3 className="font-bold text-xl text-slate-900 mb-2 line-clamp-2">{resource.title}</h3>
+
+                  {/* Description */}
+                  {resource.description && (
+                    <p className="text-sm text-slate-600 mb-3 line-clamp-2 leading-relaxed">
+                      {resource.description}
+                    </p>
+                  )}
 
                   {/* AI Model Badge */}
                   <div className="mb-4">
@@ -489,6 +506,14 @@ export default function App() {
             <div className="p-8">
               {/* Título y detalles */}
               <h2 className="text-4xl font-extrabold mb-2 text-center text-slate-900 leading-tight">{selectedResource.title}</h2>
+
+              {/* Description (full text) */}
+              {selectedResource.description && (
+                <p className="text-base text-slate-700 text-center mb-4 leading-relaxed max-w-xl mx-auto">
+                  {selectedResource.description}
+                </p>
+              )}
+
               <p className="text-center text-slate-500 mb-6">Recurso generado con IA</p>
 
               <div className="bg-slate-50 rounded-xl p-6 mb-6">
@@ -642,54 +667,111 @@ export default function App() {
               onClick={() => {
                 setShowUploadModal(false);
                 setAcceptedTerms(false);
+                setResourceDescription('');
+                setSelectedFile(null);
               }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-900"
             >
               <X size={24} />
             </button>
-            <h2 className="text-2xl font-bold mb-6">Subir PDF</h2>
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
-                isDragging
-                  ? 'border-indigo-500 bg-indigo-50 border-solid'
-                  : 'border-slate-300 bg-transparent'
-              }`}
-            >
-              <Upload
-                className={`mx-auto mb-4 transition-colors ${
-                  isDragging ? 'text-indigo-700' : 'text-indigo-600'
-                }`}
-                size={48}
-              />
-              <p className="text-slate-600 mb-2 font-medium">
-                {isDragging ? '¡Suelta el archivo aquí!' : 'Arrastra un PDF aquí'}
-              </p>
-              <p className="text-slate-400 text-sm mb-4">o</p>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileUpload}
-                disabled={uploading || !acceptedTerms}
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className={`inline-block px-6 py-3 rounded-full cursor-pointer transition ${
-                  uploading || !acceptedTerms
-                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+            <h2 className="text-2xl font-bold mb-6">Publicar Recurso</h2>
+
+            {/* File Selection Area */}
+            {!selectedFile ? (
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all mb-4 ${
+                  isDragging
+                    ? 'border-indigo-500 bg-indigo-50 border-solid'
+                    : 'border-slate-300 bg-transparent'
                 }`}
               >
-                {uploading ? 'Subiendo...' : 'Seleccionar archivo'}
+                <Upload
+                  className={`mx-auto mb-4 transition-colors ${
+                    isDragging ? 'text-indigo-700' : 'text-indigo-600'
+                  }`}
+                  size={48}
+                />
+                <p className="text-slate-600 mb-2 font-medium">
+                  {isDragging ? '¡Suelta el archivo aquí!' : 'Arrastra un PDF aquí'}
+                </p>
+                <p className="text-slate-400 text-sm mb-4">o</p>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileInput}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-full cursor-pointer hover:bg-indigo-700 transition"
+                >
+                  Seleccionar archivo
+                </label>
+              </div>
+            ) : (
+              <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <FileText className="text-indigo-600" size={40} />
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-900">{selectedFile.name}</p>
+                    <p className="text-sm text-slate-600">
+                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedFile(null)}
+                    className="p-2 text-slate-500 hover:text-red-600 transition"
+                    title="Cambiar archivo"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Description Field - Now Required */}
+            <div className="mb-4">
+              <label htmlFor="description" className="block text-sm font-semibold text-slate-700 mb-2">
+                Descripción <span className="text-red-500">*</span>
               </label>
+              <textarea
+                id="description"
+                value={resourceDescription}
+                onChange={(e) => setResourceDescription(e.target.value)}
+                maxLength={300}
+                rows={3}
+                placeholder="Describe brevemente este recurso para ayudar a otros a entender su valor... (mínimo 10 caracteres)"
+                className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none ${
+                  resourceDescription.length > 0 && resourceDescription.length < 10
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-slate-300'
+                }`}
+              />
+              <div className="flex justify-between items-center mt-1">
+                <p className={`text-xs ${
+                  resourceDescription.length > 0 && resourceDescription.length < 10
+                    ? 'text-red-500'
+                    : 'text-slate-500'
+                }`}>
+                  {resourceDescription.length < 10 && resourceDescription.length > 0
+                    ? `Faltan ${10 - resourceDescription.length} caracteres`
+                    : resourceDescription.length >= 10
+                    ? '✓ Descripción válida'
+                    : 'Mínimo 10 caracteres'
+                  }
+                </p>
+                <p className="text-xs text-slate-500">
+                  {resourceDescription.length}/300
+                </p>
+              </div>
             </div>
 
             {/* Legal Checkbox */}
-            <div className="mt-6 flex items-start gap-3 p-4 bg-slate-50 rounded-xl">
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl mb-6">
               <input
                 type="checkbox"
                 id="terms-checkbox"
@@ -701,6 +783,43 @@ export default function App() {
                 Certifico que tengo los derechos para compartir este documento y que es un contenido original o de libre distribución. Acepto que Synapse es una plataforma de curación y no propietaria del contenido.
               </label>
             </div>
+
+            {/* Publish Button */}
+            <button
+              onClick={handlePublishResource}
+              disabled={!selectedFile || resourceDescription.length < 10 || !acceptedTerms || uploading}
+              className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center gap-3 ${
+                !selectedFile || resourceDescription.length < 10 || !acceptedTerms || uploading
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg hover:shadow-xl'
+              }`}
+            >
+              {uploading ? (
+                <>
+                  <Upload size={24} className="animate-pulse" />
+                  Publicando...
+                </>
+              ) : (
+                <>
+                  <Upload size={24} />
+                  Publicar Recurso
+                </>
+              )}
+            </button>
+
+            {/* Validation Message */}
+            {(!selectedFile || resourceDescription.length < 10 || !acceptedTerms) && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-800 font-medium">
+                  Para publicar necesitas:
+                </p>
+                <ul className="text-xs text-amber-700 mt-2 space-y-1 ml-4">
+                  {!selectedFile && <li>• Seleccionar un archivo PDF</li>}
+                  {resourceDescription.length < 10 && <li>• Escribir una descripción (mín. 10 caracteres)</li>}
+                  {!acceptedTerms && <li>• Aceptar los términos legales</li>}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       )}

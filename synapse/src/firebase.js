@@ -43,7 +43,7 @@ export const logout = async () => {
   }
 };
 
-export const uploadPDF = async (file, user) => {
+export const uploadPDF = async (file, user, description = '') => {
   try {
     // Upload file to Storage
     const storageRef = ref(storage, `pdfs/${Date.now()}_${file.name}`);
@@ -67,7 +67,8 @@ export const uploadPDF = async (file, user) => {
       ratings: [], // Array de { userId, rating }
       averageRating: 0,
       totalRatings: 0,
-      avatarUrl: avatarUrl
+      avatarUrl: avatarUrl,
+      description: description || ''
     });
 
     return { id: docRef.id, fileUrl };
