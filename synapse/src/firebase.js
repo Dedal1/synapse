@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, increment, serverTimestamp, query, orderBy, getDoc, where, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, increment, serverTimestamp, query, orderBy, getDoc, where, deleteDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -174,4 +174,58 @@ export const deleteResource = async (resourceId, fileUrl) => {
     console.error("Error deleting resource:", error);
     throw error;
   }
+};
+
+// ============================================
+// FAVORITES MANAGEMENT
+// ============================================
+
+export const addToFavorites = async (userId, resourceId) => {
+  try {
+    const favoriteRef = doc(db, 'users', userId, 'favorites', resourceId);
+    await setDoc(favoriteRef, {
+      savedAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error("Error adding to favorites:", error);
+    throw error;
+  }
+};
+
+export const removeFromFavorites = async (userId, resourceId) => {
+  try {
+    const favoriteRef = doc(db, 'users', userId, 'favorites', resourceId);
+    await deleteDoc(favoriteRef);
+    return true;
+  } catch (error) {
+    console.error("Error removing from favorites:", error);
+    throw error;
+  }
+};
+
+export const getUserFavorites = async (userId) => {
+  try {
+    const favoritesRef = collection(db, 'users', userId, 'favorites');
+    const querySnapshot = await getDocs(favoritesRef);
+    const favorites = [];
+    querySnapshot.forEach((doc) => {
+      favorites.push(doc.id); // Solo guardamos los IDs de los recursos
+    });
+    return favorites;
+  } catch (error) {
+    console.error("Error getting favorites:", error);
+    throw error;
+  }
+};
+
+export const subscribeToFavorites = (userId, callback) => {
+  const favoritesRef = collection(db, 'users', userId, 'favorites');
+  return onSnapshot(favoritesRef, (snapshot) => {
+    const favorites = [];
+    snapshot.forEach((doc) => {
+      favorites.push(doc.id);
+    });
+    callback(favorites);
+  });
 };

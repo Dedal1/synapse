@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Upload, FileText, Download, Zap, User, X, Star, Trash2 } from 'lucide-react';
-import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, rateResource, checkDuplicateTitle, deleteResource } from './firebase';
+import { Search, Upload, FileText, Download, Zap, User, X, Star, Trash2, Bookmark } from 'lucide-react';
+import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, rateResource, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
@@ -19,6 +19,8 @@ export default function App() {
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [resourceDescription, setResourceDescription] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [userFavorites, setUserFavorites] = useState([]);
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
 
   const rotatingWords = ['valorar', 'reconocer', 'curar'];
 
@@ -62,6 +64,20 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, [rotatingWords.length]);
+
+  // Subscribe to user favorites
+  useEffect(() => {
+    if (!user) {
+      setUserFavorites([]);
+      return;
+    }
+
+    const unsubscribe = subscribeToFavorites(user.uid, (favorites) => {
+      setUserFavorites(favorites);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const loadResources = async () => {
     try {
@@ -271,11 +287,41 @@ export default function App() {
     }
   };
 
+  const handleToggleFavorite = async (e, resourceId) => {
+    e.stopPropagation(); // Evitar que se abra el modal
+
+    if (!user) {
+      alert('Debes iniciar sesión para guardar favoritos');
+      return;
+    }
+
+    try {
+      const isFavorite = userFavorites.includes(resourceId);
+
+      if (isFavorite) {
+        await removeFromFavorites(user.uid, resourceId);
+      } else {
+        await addToFavorites(user.uid, resourceId);
+      }
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      alert('Error al actualizar favoritos');
+    }
+  };
+
   const filteredResources = resources
-    .filter(r =>
-      r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.author.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    .filter(r => {
+      // Filtro de búsqueda
+      const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           r.author.toLowerCase().includes(searchTerm.toLowerCase());
+
+      // Filtro de favoritos
+      if (showOnlyFavorites) {
+        return matchesSearch && userFavorites.includes(r.id);
+      }
+
+      return matchesSearch;
+    })
     .sort((a, b) => {
       // Ordenar por rating promedio (mayor a menor), luego por fecha
       const ratingDiff = (b.averageRating || 0) - (a.averageRating || 0);
@@ -363,7 +409,7 @@ export default function App() {
             Inicia sesión para descargar resúmenes verificados por la comunidad
           </p>
         )}
-        <div className="max-w-2xl mx-auto relative">
+        <div className="max-w-2xl mx-auto relative mb-4">
           <Search className="absolute left-4 top-4 text-slate-400" />
           <input
             className="w-full pl-12 py-4 border-2 rounded-2xl text-lg"
@@ -372,13 +418,57 @@ export default function App() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
+        {/* Favorites Filter Button */}
+        {user && (
+          <div className="max-w-2xl mx-auto flex justify-center">
+            <button
+              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+              className={`flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all ${
+                showOnlyFavorites
+                  ? 'bg-indigo-600 text-white shadow-lg'
+                  : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-indigo-300'
+              }`}
+            >
+              <Bookmark size={20} className={showOnlyFavorites ? 'fill-white' : ''} />
+              {showOnlyFavorites ? 'Mostrando guardados' : 'Ver mis guardados'}
+              {userFavorites.length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                  showOnlyFavorites ? 'bg-white/20' : 'bg-indigo-100 text-indigo-700'
+                }`}>
+                  {userFavorites.length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Grid */}
       <main className="max-w-7xl mx-auto p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         {filteredResources.length === 0 ? (
-          <div className="col-span-3 text-center py-12 text-slate-500">
-            {searchTerm ? 'No se encontraron resultados' : 'No hay recursos aún. ¡Sé el primero en compartir!'}
+          <div className="col-span-3 text-center py-12">
+            {showOnlyFavorites ? (
+              <div className="flex flex-col items-center gap-4">
+                <Bookmark size={64} className="text-slate-300" />
+                <p className="text-xl text-slate-600 font-medium">
+                  Aún no has guardado ningún recurso para leer luego
+                </p>
+                <p className="text-slate-500">
+                  Haz clic en el icono de marcador en cualquier recurso para guardarlo aquí
+                </p>
+                <button
+                  onClick={() => setShowOnlyFavorites(false)}
+                  className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition"
+                >
+                  Explorar recursos
+                </button>
+              </div>
+            ) : (
+              <p className="text-slate-500">
+                {searchTerm ? 'No se encontraron resultados' : 'No hay recursos aún. ¡Sé el primero en compartir!'}
+              </p>
+            )}
           </div>
         ) : (
           filteredResources.map((resource) => {
@@ -401,6 +491,24 @@ export default function App() {
                     />
                   ) : (
                     <FileText className="h-12 w-12 text-white drop-shadow-lg" />
+                  )}
+
+                  {/* Top-left bookmark button */}
+                  {user && (
+                    <button
+                      onClick={(e) => handleToggleFavorite(e, resource.id)}
+                      className="absolute top-3 left-3 p-2 bg-white/95 rounded-full hover:bg-indigo-50 transition shadow-sm z-10"
+                      title={userFavorites.includes(resource.id) ? "Quitar de guardados" : "Guardar para después"}
+                    >
+                      <Bookmark
+                        size={18}
+                        className={`transition-all ${
+                          userFavorites.includes(resource.id)
+                            ? 'fill-indigo-600 text-indigo-600'
+                            : 'text-slate-600'
+                        }`}
+                      />
+                    </button>
                   )}
 
                   {/* Top-right badges/buttons */}
