@@ -50,6 +50,10 @@ export const uploadPDF = async (file, user) => {
     const snapshot = await uploadBytes(storageRef, file);
     const fileUrl = await getDownloadURL(snapshot.ref);
 
+    // Generate unique avatar seed
+    const avatarSeed = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const avatarUrl = `https://api.dicebear.com/9.x/shapes/svg?seed=${avatarSeed}`;
+
     // Save metadata to Firestore
     const docRef = await addDoc(collection(db, 'resources'), {
       title: file.name.replace('.pdf', ''),
@@ -62,7 +66,8 @@ export const uploadPDF = async (file, user) => {
       userPhoto: user.photoURL || '',
       ratings: [], // Array de { userId, rating }
       averageRating: 0,
-      totalRatings: 0
+      totalRatings: 0,
+      avatarUrl: avatarUrl
     });
 
     return { id: docRef.id, fileUrl };
