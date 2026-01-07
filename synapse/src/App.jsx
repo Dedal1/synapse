@@ -24,6 +24,7 @@ export default function App() {
   const [selectedAiModel, setSelectedAiModel] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [originalSource, setOriginalSource] = useState('');
+  const [filterCategory, setFilterCategory] = useState('Todas');
 
   const rotatingWords = ['valorar', 'reconocer', 'curar'];
 
@@ -345,12 +346,15 @@ export default function App() {
       const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            r.author.toLowerCase().includes(searchTerm.toLowerCase());
 
+      // Filtro de categoría
+      const matchesCategory = filterCategory === 'Todas' || r.category === filterCategory;
+
       // Filtro de favoritos
       if (showOnlyFavorites) {
-        return matchesSearch && userFavorites.includes(r.id);
+        return matchesSearch && matchesCategory && userFavorites.includes(r.id);
       }
 
-      return matchesSearch;
+      return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
       // Ordenar por rating promedio (mayor a menor), luego por fecha
@@ -458,7 +462,7 @@ export default function App() {
 
         {/* Favorites Filter Button */}
         {user && (
-          <div className="max-w-2xl mx-auto flex justify-center">
+          <div className="max-w-2xl mx-auto flex justify-center mb-6">
             <button
               onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
               className={`flex items-center gap-2 px-6 py-3 rounded-full font-semibold transition-all ${
@@ -479,6 +483,38 @@ export default function App() {
             </button>
           </div>
         )}
+
+        {/* Category Filter Chips */}
+        <div className="max-w-7xl mx-auto px-8 mb-6">
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+            {/* "Todas" chip */}
+            <button
+              onClick={() => setFilterCategory('Todas')}
+              className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
+                filterCategory === 'Todas'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-indigo-300'
+              }`}
+            >
+              Todas
+            </button>
+
+            {/* Category chips */}
+            {categories.map((cat) => (
+              <button
+                key={cat.value}
+                onClick={() => setFilterCategory(cat.value)}
+                className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
+                  filterCategory === cat.value
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-indigo-300'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Grid */}
