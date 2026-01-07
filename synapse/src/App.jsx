@@ -486,33 +486,38 @@ export default function App() {
 
         {/* Category Filter Chips */}
         <div className="max-w-7xl mx-auto px-4 my-6">
-          <div className="flex gap-2 overflow-x-auto md:overflow-x-visible scrollbar-hide pb-4 md:flex-wrap md:justify-center">
-            {/* "Todas" chip */}
-            <button
-              onClick={() => setFilterCategory('Todas')}
-              className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
-                filterCategory === 'Todas'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-indigo-300'
-              }`}
-            >
-              Todas
-            </button>
-
-            {/* Category chips */}
-            {categories.map((cat) => (
+          <div className="relative">
+            <div className="flex gap-2 overflow-x-auto md:overflow-x-visible scrollbar-hide pb-4 md:flex-wrap md:justify-center">
+              {/* "Todas" chip */}
               <button
-                key={cat.value}
-                onClick={() => setFilterCategory(cat.value)}
-                className={`px-5 py-2 rounded-full font-semibold text-sm whitespace-nowrap transition-all ${
-                  filterCategory === cat.value
+                onClick={() => setFilterCategory('Todas')}
+                className={`px-5 py-2.5 rounded-full font-medium text-sm whitespace-nowrap transition-all duration-200 ease-in-out ${
+                  filterCategory === 'Todas'
                     ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-indigo-300'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {cat.label}
+                Todas
               </button>
-            ))}
+
+              {/* Category chips */}
+              {categories.map((cat) => (
+                <button
+                  key={cat.value}
+                  onClick={() => setFilterCategory(cat.value)}
+                  className={`px-5 py-2.5 rounded-full font-medium text-sm whitespace-nowrap transition-all duration-200 ease-in-out ${
+                    filterCategory === cat.value
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Scroll indicator gradient - Mobile only */}
+            <div className="absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-slate-50 to-transparent pointer-events-none md:hidden" />
           </div>
         </div>
       </div>
