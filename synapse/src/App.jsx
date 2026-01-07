@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Upload, FileText, Download, Zap, User, X, Star, Trash2, Bookmark } from 'lucide-react';
+import { Search, Upload, FileText, Download, Zap, User, X, Star, Trash2, Bookmark, BookOpen } from 'lucide-react';
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, rateResource, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -22,6 +22,8 @@ export default function App() {
   const [userFavorites, setUserFavorites] = useState([]);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [selectedAiModel, setSelectedAiModel] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [originalSource, setOriginalSource] = useState('');
 
   const rotatingWords = ['valorar', 'reconocer', 'curar'];
 
@@ -32,6 +34,15 @@ export default function App() {
     { value: 'Gemini', label: 'Gemini (Google)' },
     { value: 'Perplexity', label: 'Perplexity' },
     { value: 'Manual', label: 'Creación Humana (Manual)' },
+  ];
+
+  const categories = [
+    { value: 'Tecnología', label: '💻 Tecnología', color: 'bg-blue-100 text-blue-700' },
+    { value: 'Educación', label: '📚 Educación', color: 'bg-green-100 text-green-700' },
+    { value: 'Negocios', label: '💼 Negocios', color: 'bg-purple-100 text-purple-700' },
+    { value: 'Legal/Administrativo', label: '⚖️ Legal/Administrativo', color: 'bg-amber-100 text-amber-700' },
+    { value: 'Salud/Bienestar', label: '🏥 Salud/Bienestar', color: 'bg-rose-100 text-rose-700' },
+    { value: 'Otros', label: '📁 Otros', color: 'bg-slate-100 text-slate-700' },
   ];
 
   // Function to get gradient based on resource ID/title
@@ -50,6 +61,12 @@ export default function App() {
     // Simple hash function to consistently map id to gradient
     const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return gradients[hash % gradients.length];
+  };
+
+  // Function to get category color
+  const getCategoryColor = (categoryValue) => {
+    const category = categories.find(c => c.value === categoryValue);
+    return category ? category.color : 'bg-slate-100 text-slate-700';
   };
 
   // Listen for auth state changes
@@ -132,7 +149,7 @@ export default function App() {
   };
 
   const handlePublishResource = async () => {
-    if (!selectedFile || !resourceDescription.trim() || !acceptedTerms || !selectedAiModel) {
+    if (!selectedFile || !resourceDescription.trim() || !acceptedTerms || !selectedAiModel || !selectedCategory || !originalSource.trim()) {
       return;
     }
 
@@ -148,7 +165,7 @@ export default function App() {
         return;
       }
 
-      await uploadPDF(selectedFile, user, resourceDescription, selectedAiModel);
+      await uploadPDF(selectedFile, user, resourceDescription, selectedAiModel, selectedCategory, originalSource);
       await loadResources();
 
       // Reset form
@@ -157,6 +174,8 @@ export default function App() {
       setResourceDescription('');
       setAcceptedTerms(false);
       setSelectedAiModel('');
+      setSelectedCategory('');
+      setOriginalSource('');
       setIsDragging(false);
 
       alert('PDF subido exitosamente!');
@@ -558,8 +577,13 @@ export default function App() {
                     </p>
                   )}
 
-                  {/* AI Model Badge */}
-                  <div className="mb-4">
+                  {/* Badges: Category and AI Model */}
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {resource.category && (
+                      <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${getCategoryColor(resource.category)}`}>
+                        {resource.category}
+                      </span>
+                    )}
                     <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-full">
                       {resource.aiModel || 'NotebookLM'}
                     </span>
@@ -641,6 +665,15 @@ export default function App() {
                 </p>
               )}
 
+              {/* Category Badge */}
+              {selectedResource.category && (
+                <div className="text-center mb-4">
+                  <span className={`inline-block px-4 py-2 text-sm font-semibold rounded-full ${getCategoryColor(selectedResource.category)}`}>
+                    {selectedResource.category}
+                  </span>
+                </div>
+              )}
+
               <p className="text-center text-slate-500 mb-6">Recurso generado con IA</p>
 
               <div className="bg-slate-50 rounded-xl p-6 mb-6">
@@ -684,6 +717,21 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Original Source - Critical for Trust */}
+              {selectedResource.originalSource && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <div className="flex items-start gap-3">
+                    <BookOpen className="text-blue-600 mt-0.5" size={20} />
+                    <div>
+                      <p className="text-xs font-semibold text-blue-900 uppercase mb-1">Fuente Original</p>
+                      <p className="text-sm text-blue-800 font-medium">
+                        {selectedResource.originalSource}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Interactive Rating Section */}
               {user && (
@@ -798,6 +846,8 @@ export default function App() {
                   setResourceDescription('');
                   setSelectedFile(null);
                   setSelectedAiModel('');
+                  setSelectedCategory('');
+                  setOriginalSource('');
                 }}
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 z-10"
               >
@@ -899,33 +949,78 @@ export default function App() {
               </div>
             </div>
 
-            {/* AI Model Selector */}
+            {/* Grid 2 columns: Category and AI Model */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {/* Category Selector */}
+              <div>
+                <label htmlFor="category" className="block text-sm font-semibold text-slate-700 mb-2">
+                  Categoría <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="category"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                    !selectedCategory
+                      ? 'border-slate-300 text-slate-500'
+                      : 'border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <option value="" disabled>Selecciona</option>
+                  {categories.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* AI Model Selector */}
+              <div>
+                <label htmlFor="ai-model" className="block text-sm font-semibold text-slate-700 mb-2">
+                  Generado por <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="ai-model"
+                  value={selectedAiModel}
+                  onChange={(e) => setSelectedAiModel(e.target.value)}
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                    !selectedAiModel
+                      ? 'border-slate-300 text-slate-500'
+                      : 'border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <option value="" disabled>Selecciona</option>
+                  {aiModels.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Original Source Input */}
             <div className="mb-4">
-              <label htmlFor="ai-model" className="block text-sm font-semibold text-slate-700 mb-2">
-                ¿Quién generó este contenido? <span className="text-red-500">*</span>
+              <label htmlFor="original-source" className="block text-sm font-semibold text-slate-700 mb-2">
+                Fuente Original <span className="text-red-500">*</span>
               </label>
-              <select
-                id="ai-model"
-                value={selectedAiModel}
-                onChange={(e) => setSelectedAiModel(e.target.value)}
+              <input
+                id="original-source"
+                type="text"
+                value={originalSource}
+                onChange={(e) => setOriginalSource(e.target.value)}
+                maxLength={150}
+                placeholder="Ej: Manual DGT 2025, Libro de Marketing de Kotler, BOE..."
                 className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                  !selectedAiModel
-                    ? 'border-slate-300 text-slate-500'
-                    : 'border-slate-300 text-slate-900'
+                  !originalSource
+                    ? 'border-slate-300'
+                    : 'border-slate-300'
                 }`}
-              >
-                <option value="" disabled>Selecciona el modelo de IA o autor</option>
-                {aiModels.map((model) => (
-                  <option key={model.value} value={model.value}>
-                    {model.label}
-                  </option>
-                ))}
-              </select>
-              {selectedAiModel && (
-                <p className="text-xs text-slate-500 mt-1">
-                  ✓ Modelo seleccionado
-                </p>
-              )}
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Indica en qué se basa este contenido para garantizar su veracidad.
+              </p>
             </div>
 
             {/* Legal Checkbox */}
@@ -945,9 +1040,9 @@ export default function App() {
             {/* Publish Button */}
             <button
               onClick={handlePublishResource}
-              disabled={!selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || uploading}
+              disabled={!selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || !selectedCategory || !originalSource.trim() || uploading}
               className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center gap-3 ${
-                !selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || uploading
+                !selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || !selectedCategory || !originalSource.trim() || uploading
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                   : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg hover:shadow-xl'
               }`}
@@ -966,7 +1061,7 @@ export default function App() {
             </button>
 
             {/* Validation Message */}
-            {(!selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel) && (
+            {(!selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || !selectedCategory || !originalSource.trim()) && (
               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-xs text-amber-800 font-medium">
                   Para publicar necesitas:
@@ -974,7 +1069,9 @@ export default function App() {
                 <ul className="text-xs text-amber-700 mt-2 space-y-1 ml-4">
                   {!selectedFile && <li>• Seleccionar un archivo PDF</li>}
                   {resourceDescription.length < 10 && <li>• Escribir una descripción (mín. 10 caracteres)</li>}
+                  {!selectedCategory && <li>• Seleccionar una categoría</li>}
                   {!selectedAiModel && <li>• Seleccionar quién generó el contenido</li>}
+                  {!originalSource.trim() && <li>• Indicar la fuente original</li>}
                   {!acceptedTerms && <li>• Aceptar los términos legales</li>}
                 </ul>
               </div>
