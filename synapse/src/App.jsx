@@ -485,8 +485,8 @@ export default function App() {
         )}
 
         {/* Category Filter Chips */}
-        <div className="max-w-7xl mx-auto px-8 mb-6">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+        <div className="max-w-7xl mx-auto px-4 my-6">
+          <div className="flex gap-2 overflow-x-auto md:overflow-x-visible scrollbar-hide pb-4 md:flex-wrap md:justify-center">
             {/* "Todas" chip */}
             <button
               onClick={() => setFilterCategory('Todas')}
