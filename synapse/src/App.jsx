@@ -21,8 +21,18 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [userFavorites, setUserFavorites] = useState([]);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
+  const [selectedAiModel, setSelectedAiModel] = useState('');
 
   const rotatingWords = ['valorar', 'reconocer', 'curar'];
+
+  const aiModels = [
+    { value: 'NotebookLM', label: 'NotebookLM (Google)' },
+    { value: 'ChatGPT', label: 'ChatGPT (OpenAI)' },
+    { value: 'Claude', label: 'Claude (Anthropic)' },
+    { value: 'Gemini', label: 'Gemini (Google)' },
+    { value: 'Perplexity', label: 'Perplexity' },
+    { value: 'Manual', label: 'Creación Humana (Manual)' },
+  ];
 
   // Function to get gradient based on resource ID/title
   const getGradient = (id) => {
@@ -122,7 +132,7 @@ export default function App() {
   };
 
   const handlePublishResource = async () => {
-    if (!selectedFile || !resourceDescription.trim() || !acceptedTerms) {
+    if (!selectedFile || !resourceDescription.trim() || !acceptedTerms || !selectedAiModel) {
       return;
     }
 
@@ -138,7 +148,7 @@ export default function App() {
         return;
       }
 
-      await uploadPDF(selectedFile, user, resourceDescription);
+      await uploadPDF(selectedFile, user, resourceDescription, selectedAiModel);
       await loadResources();
 
       // Reset form
@@ -146,6 +156,7 @@ export default function App() {
       setSelectedFile(null);
       setResourceDescription('');
       setAcceptedTerms(false);
+      setSelectedAiModel('');
       setIsDragging(false);
 
       alert('PDF subido exitosamente!');
@@ -401,6 +412,13 @@ export default function App() {
               </span>
             </span>
             {' '}la Inteligencia Artificial.
+          </p>
+        </div>
+
+        {/* Explanatory Banner */}
+        <div className="max-w-2xl mx-auto mb-6">
+          <p className="text-gray-600 text-center leading-relaxed">
+            Synapse es la biblioteca de conocimiento curado. Centralizamos los mejores resúmenes generados por IA, pero aquí son los humanos quienes los valoran y validan.
           </p>
         </div>
 
@@ -779,6 +797,7 @@ export default function App() {
                   setAcceptedTerms(false);
                   setResourceDescription('');
                   setSelectedFile(null);
+                  setSelectedAiModel('');
                 }}
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 z-10"
               >
@@ -880,6 +899,35 @@ export default function App() {
               </div>
             </div>
 
+            {/* AI Model Selector */}
+            <div className="mb-4">
+              <label htmlFor="ai-model" className="block text-sm font-semibold text-slate-700 mb-2">
+                ¿Quién generó este contenido? <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="ai-model"
+                value={selectedAiModel}
+                onChange={(e) => setSelectedAiModel(e.target.value)}
+                className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                  !selectedAiModel
+                    ? 'border-slate-300 text-slate-500'
+                    : 'border-slate-300 text-slate-900'
+                }`}
+              >
+                <option value="" disabled>Selecciona el modelo de IA o autor</option>
+                {aiModels.map((model) => (
+                  <option key={model.value} value={model.value}>
+                    {model.label}
+                  </option>
+                ))}
+              </select>
+              {selectedAiModel && (
+                <p className="text-xs text-slate-500 mt-1">
+                  ✓ Modelo seleccionado
+                </p>
+              )}
+            </div>
+
             {/* Legal Checkbox */}
             <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl mb-6">
               <input
@@ -897,9 +945,9 @@ export default function App() {
             {/* Publish Button */}
             <button
               onClick={handlePublishResource}
-              disabled={!selectedFile || resourceDescription.length < 10 || !acceptedTerms || uploading}
+              disabled={!selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || uploading}
               className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center gap-3 ${
-                !selectedFile || resourceDescription.length < 10 || !acceptedTerms || uploading
+                !selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || uploading
                   ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                   : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg hover:shadow-xl'
               }`}
@@ -918,7 +966,7 @@ export default function App() {
             </button>
 
             {/* Validation Message */}
-            {(!selectedFile || resourceDescription.length < 10 || !acceptedTerms) && (
+            {(!selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel) && (
               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-xs text-amber-800 font-medium">
                   Para publicar necesitas:
@@ -926,6 +974,7 @@ export default function App() {
                 <ul className="text-xs text-amber-700 mt-2 space-y-1 ml-4">
                   {!selectedFile && <li>• Seleccionar un archivo PDF</li>}
                   {resourceDescription.length < 10 && <li>• Escribir una descripción (mín. 10 caracteres)</li>}
+                  {!selectedAiModel && <li>• Seleccionar quién generó el contenido</li>}
                   {!acceptedTerms && <li>• Aceptar los términos legales</li>}
                 </ul>
               </div>
