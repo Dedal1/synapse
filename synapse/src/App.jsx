@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Upload, FileText, Download, Zap, User, X, Star, Trash2, Bookmark, BookOpen } from 'lucide-react';
-import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, rateResource, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites } from './firebase';
+import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen } from 'lucide-react';
+import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
@@ -13,9 +13,6 @@ export default function App() {
   const [selectedResource, setSelectedResource] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [selectedRating, setSelectedRating] = useState(0);
-  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
-  const [hasVotedThisSession, setHasVotedThisSession] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [resourceDescription, setResourceDescription] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
@@ -26,7 +23,7 @@ export default function App() {
   const [originalSource, setOriginalSource] = useState('');
   const [filterCategory, setFilterCategory] = useState('Todas');
 
-  const rotatingWords = ['valorar', 'reconocer', 'curar'];
+  const rotatingWords = ['descubrir', 'validar', 'compartir'];
 
   const aiModels = [
     { value: 'NotebookLM', label: 'NotebookLM (Google)' },
@@ -211,27 +208,6 @@ export default function App() {
 
   const handleCardClick = (resource) => {
     setSelectedResource(resource);
-    // Reset rating states when opening a new resource
-    setSelectedRating(0);
-    setIsSubmittingRating(false);
-
-    // Check if user has already voted this resource (from localStorage or API)
-    const hasUserVoted = checkIfUserHasVoted(resource.id);
-    setHasVotedThisSession(hasUserVoted);
-  };
-
-  const checkIfUserHasVoted = (resourceId) => {
-    if (!user) return false;
-
-    // Check localStorage for voted resources
-    const votedResources = JSON.parse(localStorage.getItem('voted_resources_ids') || '[]');
-    const hasVotedLocally = votedResources.includes(resourceId);
-
-    // Check if user has already voted via API (exists in ratings array)
-    const resource = resources.find(r => r.id === resourceId);
-    const hasVotedInAPI = resource?.ratings?.some(r => r.userId === user.uid) || false;
-
-    return hasVotedLocally || hasVotedInAPI;
   };
 
   const handleDownloadFromModal = async () => {
@@ -253,50 +229,47 @@ export default function App() {
     }
   };
 
-  const handleRatingSelect = (rating) => {
-    // Only allow selection if user hasn't voted in this session
-    if (!hasVotedThisSession && user) {
-      setSelectedRating(rating);
+  const handleToggleValidation = async (e, resourceId) => {
+    if (e) e.stopPropagation(); // Evitar que se abra el modal si viene de la card
+
+    if (!user) {
+      alert('Debes iniciar sesión para validar recursos');
+      return;
     }
-  };
-
-  const handleSubmitRating = async () => {
-    if (!selectedResource || !selectedRating || !user) return;
-
-    setIsSubmittingRating(true);
 
     try {
-      await rateResource(selectedResource.id, user.uid, selectedRating);
+      const resource = resources.find(r => r.id === resourceId);
+      const validatedBy = resource?.validatedBy || [];
+      const hasValidated = validatedBy.includes(user.uid);
+
+      if (hasValidated) {
+        // Remove validation
+        await removeValidation(resourceId, user.uid);
+      } else {
+        // Add validation
+        await addValidation(resourceId, user.uid);
+      }
+
+      // Reload resources
       await loadResources();
 
-      // Update selected resource with new data
-      const updatedResources = await getPDFs();
-      const updatedResource = updatedResources.find(r => r.id === selectedResource.id);
-      if (updatedResource) {
-        setSelectedResource(updatedResource);
+      // Update selected resource if modal is open
+      if (selectedResource && selectedResource.id === resourceId) {
+        const updatedResources = await getPDFs();
+        const updatedResource = updatedResources.find(r => r.id === resourceId);
+        if (updatedResource) {
+          setSelectedResource(updatedResource);
+        }
       }
-
-      // Save to localStorage
-      const votedResources = JSON.parse(localStorage.getItem('voted_resources_ids') || '[]');
-      if (!votedResources.includes(selectedResource.id)) {
-        votedResources.push(selectedResource.id);
-        localStorage.setItem('voted_resources_ids', JSON.stringify(votedResources));
-      }
-
-      // Mark as voted and reset selection
-      setHasVotedThisSession(true);
-      setIsSubmittingRating(false);
     } catch (error) {
-      console.error("Error rating resource:", error);
-      alert('Error al valorar el recurso');
-      setIsSubmittingRating(false);
+      console.error("Error toggling validation:", error);
+      alert('Error al actualizar la validación');
     }
   };
 
-  const getUserRating = (resource) => {
-    if (!user || !resource.ratings) return 0;
-    const userRating = resource.ratings.find(r => r.userId === user.uid);
-    return userRating ? userRating.rating : 0;
+  const hasUserValidated = (resource) => {
+    if (!user || !resource.validatedBy) return false;
+    return resource.validatedBy.includes(user.uid);
   };
 
   const handleDeleteResource = async (e, resource) => {
@@ -357,10 +330,10 @@ export default function App() {
       return matchesSearch && matchesCategory;
     })
     .sort((a, b) => {
-      // Ordenar por rating promedio (mayor a menor), luego por fecha
-      const ratingDiff = (b.averageRating || 0) - (a.averageRating || 0);
-      if (ratingDiff !== 0) return ratingDiff;
-      // Si tienen el mismo rating, mostrar los más recientes primero
+      // Ordenar por número de validaciones (mayor a menor), luego por fecha
+      const validationDiff = (b.validatedBy?.length || 0) - (a.validatedBy?.length || 0);
+      if (validationDiff !== 0) return validationDiff;
+      // Si tienen las mismas validaciones, mostrar los más recientes primero
       return (b.uploadedAt?.seconds || 0) - (a.uploadedAt?.seconds || 0);
     });
 
@@ -441,7 +414,7 @@ export default function App() {
         {/* Explanatory Banner */}
         <div className="max-w-2xl mx-auto mb-6">
           <p className="text-gray-600 text-center leading-relaxed">
-            Synapse es la biblioteca de conocimiento curado. Centralizamos los mejores resúmenes generados por IA, pero aquí son los humanos quienes los valoran y validan.
+            Synapse es la biblioteca comunitaria de conocimiento. Accede a resúmenes verificados de fuentes reales, validados por personas como tú.
           </p>
         </div>
 
@@ -550,8 +523,8 @@ export default function App() {
           </div>
         ) : (
           filteredResources.map((resource) => {
-            const avgRating = resource.averageRating || 0;
-            const totalRatings = resource.totalRatings || 0;
+            const validationCount = resource.validatedBy?.length || 0;
+            const isValidatedByUser = hasUserValidated(resource);
 
             return (
               <div
@@ -630,26 +603,29 @@ export default function App() {
                     </span>
                   </div>
 
-                  {/* Star Rating System - Read Only */}
+                  {/* Validation Button */}
                   <div className="mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            size={18}
-                            className={`transition-all ${
-                              star <= avgRating
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-300'
-                            }`}
-                          />
-                        ))}
+                    {user ? (
+                      <button
+                        onClick={(e) => handleToggleValidation(e, resource.id)}
+                        className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                          isValidatedByUser
+                            ? 'bg-green-500 text-white shadow-md hover:bg-green-600'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Check size={18} className={isValidatedByUser ? 'stroke-2' : ''} />
+                        {isValidatedByUser ? 'Validado por ti' : 'Validar utilidad'}
+                      </button>
+                    ) : (
+                      <div className="py-2.5 px-4 bg-slate-50 rounded-lg text-center text-sm text-slate-500">
+                        <Check size={18} className="inline mr-2" />
+                        Inicia sesión para validar
                       </div>
-                      <span className="text-sm font-semibold text-slate-700">
-                        {avgRating > 0 ? `${avgRating.toFixed(1)} (${totalRatings})` : 'Sin valoraciones'}
-                      </span>
-                    </div>
+                    )}
+                    <p className="text-xs text-slate-600 mt-2 text-center">
+                      {validationCount} {validationCount === 1 ? 'validación' : 'validaciones'}
+                    </p>
                   </div>
 
                   {/* Footer Info */}
@@ -734,25 +710,11 @@ export default function App() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-1">Valoración promedio</p>
+                    <p className="text-slate-500 mb-1">Validaciones</p>
                     <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            size={16}
-                            className={`${
-                              star <= (selectedResource.averageRating || 0)
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-300'
-                            }`}
-                          />
-                        ))}
-                      </div>
+                      <Check size={18} className="text-green-600" />
                       <span className="text-sm font-semibold text-slate-900">
-                        {selectedResource.averageRating > 0
-                          ? `${selectedResource.averageRating.toFixed(1)} (${selectedResource.totalRatings})`
-                          : 'Sin valoraciones'}
+                        {selectedResource.validatedBy?.length || 0} {(selectedResource.validatedBy?.length || 0) === 1 ? 'validación' : 'validaciones'}
                       </span>
                     </div>
                   </div>
@@ -774,87 +736,35 @@ export default function App() {
                 </div>
               )}
 
-              {/* Interactive Rating Section */}
-              {user && (
-                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6 mb-6 border border-indigo-100">
-                  <h3 className="font-bold text-lg text-slate-900 mb-3">
-                    {hasVotedThisSession ? 'Tu valoración' : 'Valora este recurso:'}
-                  </h3>
+              {/* Validation Section */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 border border-green-200">
+                <h3 className="font-bold text-lg text-slate-900 mb-3">
+                  ¿Este recurso te ha sido útil?
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  Valida la utilidad de este contenido para ayudar a otros usuarios de la comunidad a identificar recursos verificados.
+                </p>
 
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const userRating = getUserRating(selectedResource);
-                        const displayRating = hasVotedThisSession ? userRating : selectedRating;
-
-                        return (
-                          <button
-                            key={star}
-                            onClick={() => handleRatingSelect(star)}
-                            disabled={hasVotedThisSession}
-                            className={`transition-all focus:outline-none ${
-                              hasVotedThisSession
-                                ? 'cursor-not-allowed'
-                                : 'hover:scale-125 cursor-pointer'
-                            }`}
-                          >
-                            <Star
-                              size={32}
-                              className={`transition-all ${
-                                star <= displayRating
-                                  ? 'fill-amber-400 text-amber-400 drop-shadow-md'
-                                  : hasVotedThisSession
-                                  ? 'text-slate-300'
-                                  : 'text-slate-400 hover:text-amber-300 hover:fill-amber-200'
-                              }`}
-                            />
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <span className="text-sm text-slate-600">
-                      {hasVotedThisSession
-                        ? `${getUserRating(selectedResource)} estrella${getUserRating(selectedResource) > 1 ? 's' : ''}`
-                        : selectedRating > 0
-                        ? `${selectedRating} estrella${selectedRating > 1 ? 's' : ''} seleccionada${selectedRating > 1 ? 's' : ''}`
-                        : 'Haz clic para seleccionar'
-                      }
-                    </span>
+                {user ? (
+                  <button
+                    onClick={() => handleToggleValidation(null, selectedResource.id)}
+                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center gap-3 shadow-md ${
+                      hasUserValidated(selectedResource)
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-white text-slate-700 border-2 border-green-300 hover:bg-green-50 hover:border-green-400'
+                    }`}
+                  >
+                    <Check size={24} className={hasUserValidated(selectedResource) ? 'stroke-[3]' : ''} />
+                    {hasUserValidated(selectedResource) ? '✓ Validado por ti' : 'Validar utilidad'}
+                  </button>
+                ) : (
+                  <div className="bg-slate-100 rounded-xl p-4 text-center">
+                    <p className="text-sm text-slate-600">
+                      Inicia sesión para validar este recurso
+                    </p>
                   </div>
-
-                  {/* Submit Button */}
-                  {!hasVotedThisSession && selectedRating > 0 && (
-                    <button
-                      onClick={handleSubmitRating}
-                      disabled={isSubmittingRating}
-                      className={`w-full py-3 rounded-lg font-semibold text-white transition ${
-                        isSubmittingRating
-                          ? 'bg-slate-400 cursor-not-allowed'
-                          : 'bg-indigo-600 hover:bg-indigo-700'
-                      }`}
-                    >
-                      {isSubmittingRating ? 'Enviando...' : 'Enviar Valoración'}
-                    </button>
-                  )}
-
-                  {/* Already Voted Message */}
-                  {hasVotedThisSession && (
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
-                      <p className="text-sm text-slate-600 font-medium">
-                        Ya has valorado este recurso
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!user && (
-                <div className="bg-slate-100 rounded-xl p-4 mb-6 text-center">
-                  <p className="text-sm text-slate-600">
-                    Inicia sesión para valorar este recurso
-                  </p>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Botón de descarga grande */}
               <button
@@ -1074,7 +984,7 @@ export default function App() {
                 className="mt-1 w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
               />
               <label htmlFor="terms-checkbox" className="text-xs text-slate-600 leading-relaxed cursor-pointer">
-                Certifico que tengo los derechos para compartir este documento y que es un contenido original o de libre distribución. Acepto que Synapse es una plataforma de curación y no propietaria del contenido.
+                Certifico que tengo los derechos para compartir este documento y que es un contenido original o de libre distribución. Acepto que Synapse es una plataforma comunitaria y no propietaria del contenido.
               </label>
             </div>
 

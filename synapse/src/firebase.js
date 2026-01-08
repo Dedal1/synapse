@@ -64,9 +64,7 @@ export const uploadPDF = async (file, user, description = '', aiModel = 'Noteboo
       uploadedAt: serverTimestamp(),
       userId: user.uid,
       userPhoto: user.photoURL || '',
-      ratings: [], // Array de { userId, rating }
-      averageRating: 0,
-      totalRatings: 0,
+      validatedBy: [], // Array de UIDs que han validado
       avatarUrl: avatarUrl,
       description: description || '',
       category: category,
@@ -107,7 +105,7 @@ export const incrementDownloads = async (resourceId) => {
   }
 };
 
-export const rateResource = async (resourceId, userId, rating) => {
+export const addValidation = async (resourceId, userId) => {
   try {
     const docRef = doc(db, 'resources', resourceId);
     const docSnap = await getDoc(docRef);
@@ -117,35 +115,49 @@ export const rateResource = async (resourceId, userId, rating) => {
     }
 
     const data = docSnap.data();
-    const ratings = data.ratings || [];
+    const validatedBy = data.validatedBy || [];
 
-    // Buscar si el usuario ya valoró
-    const existingRatingIndex = ratings.findIndex(r => r.userId === userId);
-
-    let newRatings;
-    if (existingRatingIndex >= 0) {
-      // Actualizar valoración existente
-      newRatings = [...ratings];
-      newRatings[existingRatingIndex] = { userId, rating };
-    } else {
-      // Añadir nueva valoración
-      newRatings = [...ratings, { userId, rating }];
+    // Si el usuario ya validó, no hacer nada
+    if (validatedBy.includes(userId)) {
+      return { validatedBy };
     }
 
-    // Calcular promedio
-    const totalRatings = newRatings.length;
-    const sumRatings = newRatings.reduce((sum, r) => sum + r.rating, 0);
-    const averageRating = totalRatings > 0 ? sumRatings / totalRatings : 0;
+    // Añadir validación
+    const newValidatedBy = [...validatedBy, userId];
 
     await updateDoc(docRef, {
-      ratings: newRatings,
-      averageRating: averageRating,
-      totalRatings: totalRatings
+      validatedBy: newValidatedBy
     });
 
-    return { averageRating, totalRatings };
+    return { validatedBy: newValidatedBy };
   } catch (error) {
-    console.error("Error rating resource:", error);
+    console.error("Error adding validation:", error);
+    throw error;
+  }
+};
+
+export const removeValidation = async (resourceId, userId) => {
+  try {
+    const docRef = doc(db, 'resources', resourceId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new Error('Resource not found');
+    }
+
+    const data = docSnap.data();
+    const validatedBy = data.validatedBy || [];
+
+    // Remover validación del usuario
+    const newValidatedBy = validatedBy.filter(uid => uid !== userId);
+
+    await updateDoc(docRef, {
+      validatedBy: newValidatedBy
+    });
+
+    return { validatedBy: newValidatedBy };
+  } catch (error) {
+    console.error("Error removing validation:", error);
     throw error;
   }
 };
