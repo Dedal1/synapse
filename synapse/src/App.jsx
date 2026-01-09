@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen } from 'lucide-react';
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -16,6 +20,9 @@ export default function App() {
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [resourceDescription, setResourceDescription] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [thumbnailBlob, setThumbnailBlob] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState(null);
+  const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
   const [userFavorites, setUserFavorites] = useState([]);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [selectedAiModel, setSelectedAiModel] = useState('');
@@ -129,7 +136,42 @@ export default function App() {
     }
   };
 
-  const handleFileSelect = (file) => {
+  const generateThumbnailFromPdf = async (file) => {
+    setGeneratingThumbnail(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdf.getPage(1);
+
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+      // Convert canvas to blob
+      const blob = await new Promise((resolve) => {
+        canvas.toBlob(resolve, 'image/jpeg', 0.85);
+      });
+
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(blob);
+
+      setThumbnailBlob(blob);
+      setThumbnailPreview(previewUrl);
+      setGeneratingThumbnail(false);
+    } catch (error) {
+      console.error('Error generating thumbnail:', error);
+      setGeneratingThumbnail(false);
+      // Continue without thumbnail - fallback to icon
+      setThumbnailBlob(null);
+      setThumbnailPreview(null);
+    }
+  };
+
+  const handleFileSelect = async (file) => {
     if (!file) return;
 
     if (file.type !== 'application/pdf') {
@@ -139,6 +181,9 @@ export default function App() {
 
     setSelectedFile(file);
     setIsDragging(false);
+
+    // Generate thumbnail automatically
+    await generateThumbnailFromPdf(file);
   };
 
   const handleFileInput = (e) => {
@@ -163,7 +208,7 @@ export default function App() {
         return;
       }
 
-      await uploadPDF(selectedFile, user, resourceDescription, selectedAiModel, selectedCategory, originalSource);
+      await uploadPDF(selectedFile, user, resourceDescription, selectedAiModel, selectedCategory, originalSource, thumbnailBlob);
       await loadResources();
 
       // Reset form
@@ -175,6 +220,8 @@ export default function App() {
       setSelectedCategory('');
       setOriginalSource('');
       setIsDragging(false);
+      setThumbnailBlob(null);
+      setThumbnailPreview(null);
 
       alert('PDF subido exitosamente!');
     } catch (error) {
@@ -532,9 +579,17 @@ export default function App() {
                 className="bg-white rounded-2xl shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer relative overflow-hidden border border-slate-100"
                 onClick={() => handleCardClick(resource)}
               >
-                {/* Gradient Header */}
-                <div className={`h-32 bg-gradient-to-br ${getGradient(resource.id)} relative flex items-center justify-center`}>
-                  {resource.avatarUrl ? (
+                {/* Header - Thumbnail or Gradient */}
+                <div className={`h-48 relative flex items-center justify-center overflow-hidden ${
+                  resource.thumbnailUrl ? '' : `bg-gradient-to-br ${getGradient(resource.id)}`
+                }`}>
+                  {resource.thumbnailUrl ? (
+                    <img
+                      src={resource.thumbnailUrl}
+                      alt={resource.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : resource.avatarUrl ? (
                     <img
                       src={resource.avatarUrl}
                       alt={resource.title}
@@ -657,9 +712,17 @@ export default function App() {
               <X size={24} />
             </button>
 
-            {/* Gradient Header with Icon */}
-            <div className={`h-48 bg-gradient-to-br ${getGradient(selectedResource.id)} relative flex items-center justify-center`}>
-              {selectedResource.avatarUrl ? (
+            {/* Header - Thumbnail or Gradient with Icon */}
+            <div className={`relative flex items-center justify-center overflow-hidden ${
+              selectedResource.thumbnailUrl ? 'h-64' : `h-48 bg-gradient-to-br ${getGradient(selectedResource.id)}`
+            }`}>
+              {selectedResource.thumbnailUrl ? (
+                <img
+                  src={selectedResource.thumbnailUrl}
+                  alt={selectedResource.title}
+                  className="w-full h-full object-cover"
+                />
+              ) : selectedResource.avatarUrl ? (
                 <img
                   src={selectedResource.avatarUrl}
                   alt={selectedResource.title}
@@ -799,6 +862,8 @@ export default function App() {
                   setSelectedAiModel('');
                   setSelectedCategory('');
                   setOriginalSource('');
+                  setThumbnailBlob(null);
+                  setThumbnailPreview(null);
                 }}
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 z-10"
               >
@@ -843,22 +908,45 @@ export default function App() {
                 </label>
               </div>
             ) : (
-              <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <FileText className="text-indigo-600" size={40} />
-                  <div className="flex-1">
-                    <p className="font-semibold text-slate-900">{selectedFile.name}</p>
-                    <p className="text-sm text-slate-600">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+              <div className="mb-4">
+                {/* Thumbnail Preview */}
+                {generatingThumbnail && (
+                  <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                    <p className="text-sm text-blue-700 font-medium">Generando vista previa...</p>
                   </div>
-                  <button
-                    onClick={() => setSelectedFile(null)}
-                    className="p-2 text-slate-500 hover:text-red-600 transition"
-                    title="Cambiar archivo"
-                  >
-                    <X size={20} />
-                  </button>
+                )}
+
+                {thumbnailPreview && (
+                  <div className="mb-3 rounded-xl overflow-hidden border-2 border-indigo-200">
+                    <img
+                      src={thumbnailPreview}
+                      alt="Vista previa"
+                      className="w-full h-48 object-cover"
+                    />
+                  </div>
+                )}
+
+                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <FileText className="text-indigo-600" size={40} />
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-900">{selectedFile.name}</p>
+                      <p className="text-sm text-slate-600">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setThumbnailBlob(null);
+                        setThumbnailPreview(null);
+                      }}
+                      className="p-2 text-slate-500 hover:text-red-600 transition"
+                      title="Cambiar archivo"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

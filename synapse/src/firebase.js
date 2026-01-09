@@ -43,15 +43,30 @@ export const logout = async () => {
   }
 };
 
-export const uploadPDF = async (file, user, description = '', aiModel = 'NotebookLM', category = 'Otros', originalSource = '') => {
+export const uploadPDF = async (file, user, description = '', aiModel = 'NotebookLM', category = 'Otros', originalSource = '', thumbnailBlob = null) => {
   try {
+    const timestamp = Date.now();
+
     // Upload file to Storage
-    const storageRef = ref(storage, `pdfs/${Date.now()}_${file.name}`);
+    const storageRef = ref(storage, `pdfs/${timestamp}_${file.name}`);
     const snapshot = await uploadBytes(storageRef, file);
     const fileUrl = await getDownloadURL(snapshot.ref);
 
-    // Generate unique avatar seed
-    const avatarSeed = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    // Upload thumbnail if available
+    let thumbnailUrl = null;
+    if (thumbnailBlob) {
+      try {
+        const thumbnailRef = ref(storage, `thumbnails/${timestamp}_${file.name.replace('.pdf', '')}.jpg`);
+        const thumbnailSnapshot = await uploadBytes(thumbnailRef, thumbnailBlob);
+        thumbnailUrl = await getDownloadURL(thumbnailSnapshot.ref);
+      } catch (thumbError) {
+        console.warn('Failed to upload thumbnail, continuing without it:', thumbError);
+        // Continue without thumbnail
+      }
+    }
+
+    // Generate unique avatar seed (fallback for old resources)
+    const avatarSeed = `${timestamp}-${Math.random().toString(36).substring(7)}`;
     const avatarUrl = `https://api.dicebear.com/9.x/shapes/svg?seed=${avatarSeed}`;
 
     // Save metadata to Firestore
@@ -65,7 +80,8 @@ export const uploadPDF = async (file, user, description = '', aiModel = 'Noteboo
       userId: user.uid,
       userPhoto: user.photoURL || '',
       validatedBy: [], // Array de UIDs que han validado
-      avatarUrl: avatarUrl,
+      avatarUrl: avatarUrl, // Fallback for old resources
+      thumbnailUrl: thumbnailUrl, // New: actual PDF thumbnail
       description: description || '',
       category: category,
       originalSource: originalSource
