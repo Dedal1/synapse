@@ -4,8 +4,11 @@ import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, 
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker - Use local worker for reliability with Vite
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+console.log('[PDF.js] Version:', pdfjsLib.version);
+console.log('[PDF.js] Worker configured:', pdfjsLib.GlobalWorkerOptions.workerSrc);
 
 export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -137,37 +140,67 @@ export default function App() {
   };
 
   const generateThumbnailFromPdf = async (file) => {
+    console.log('[Thumbnail] Starting generation for file:', file.name);
     setGeneratingThumbnail(true);
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const page = await pdf.getPage(1);
 
+    try {
+      console.log('[Thumbnail] Step 1: Reading file as ArrayBuffer...');
+      const arrayBuffer = await file.arrayBuffer();
+      console.log('[Thumbnail] ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
+
+      console.log('[Thumbnail] Step 2: Loading PDF document...');
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
+      console.log('[Thumbnail] PDF loaded successfully. Pages:', pdf.numPages);
+
+      console.log('[Thumbnail] Step 3: Getting first page...');
+      const page = await pdf.getPage(1);
+      console.log('[Thumbnail] Page retrieved successfully');
+
+      console.log('[Thumbnail] Step 4: Creating viewport...');
       const viewport = page.getViewport({ scale: 1.5 });
+      console.log('[Thumbnail] Viewport dimensions:', viewport.width, 'x', viewport.height);
+
+      console.log('[Thumbnail] Step 5: Creating canvas...');
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.height = viewport.height;
       canvas.width = viewport.width;
+      console.log('[Thumbnail] Canvas created:', canvas.width, 'x', canvas.height);
 
+      console.log('[Thumbnail] Step 6: Rendering page to canvas...');
       await page.render({ canvasContext: context, viewport: viewport }).promise;
+      console.log('[Thumbnail] Page rendered successfully');
 
+      console.log('[Thumbnail] Step 7: Converting canvas to blob...');
       // Convert canvas to blob
       const blob = await new Promise((resolve) => {
         canvas.toBlob(resolve, 'image/jpeg', 0.85);
       });
+      console.log('[Thumbnail] Blob created. Size:', blob?.size, 'bytes');
 
       // Create preview URL
       const previewUrl = URL.createObjectURL(blob);
+      console.log('[Thumbnail] Preview URL created:', previewUrl);
 
       setThumbnailBlob(blob);
       setThumbnailPreview(previewUrl);
       setGeneratingThumbnail(false);
+      console.log('[Thumbnail] ✅ Generation completed successfully');
     } catch (error) {
-      console.error('Error generating thumbnail:', error);
+      console.error('[Thumbnail] ❌ ERROR during generation:', error);
+      console.error('[Thumbnail] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
       setGeneratingThumbnail(false);
       // Continue without thumbnail - fallback to icon
       setThumbnailBlob(null);
       setThumbnailPreview(null);
+
+      // Show user-friendly error
+      alert('No se pudo generar la vista previa del PDF. El archivo se subirá sin miniatura.');
     }
   };
 
@@ -580,14 +613,15 @@ export default function App() {
                 onClick={() => handleCardClick(resource)}
               >
                 {/* Header - Thumbnail or Gradient */}
-                <div className={`h-48 relative flex items-center justify-center overflow-hidden ${
+                <div className={`w-full h-48 relative flex items-center justify-center overflow-hidden ${
                   resource.thumbnailUrl ? '' : `bg-gradient-to-br ${getGradient(resource.id)}`
                 }`}>
                   {resource.thumbnailUrl ? (
                     <img
                       src={resource.thumbnailUrl}
                       alt={resource.title}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover block"
+                      style={{ objectPosition: 'center top' }}
                     />
                   ) : resource.avatarUrl ? (
                     <img
@@ -713,14 +747,15 @@ export default function App() {
             </button>
 
             {/* Header - Thumbnail or Gradient with Icon */}
-            <div className={`relative flex items-center justify-center overflow-hidden ${
+            <div className={`w-full relative flex items-center justify-center overflow-hidden rounded-t-2xl ${
               selectedResource.thumbnailUrl ? 'h-64' : `h-48 bg-gradient-to-br ${getGradient(selectedResource.id)}`
             }`}>
               {selectedResource.thumbnailUrl ? (
                 <img
                   src={selectedResource.thumbnailUrl}
                   alt={selectedResource.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover block"
+                  style={{ objectPosition: 'center top' }}
                 />
               ) : selectedResource.avatarUrl ? (
                 <img
@@ -736,7 +771,7 @@ export default function App() {
             {/* Content */}
             <div className="p-8 pb-12">
               {/* Título y detalles */}
-              <h2 className="text-4xl font-extrabold mb-2 text-center text-slate-900 leading-tight">{selectedResource.title}</h2>
+              <h2 className="text-4xl font-extrabold mb-2 text-center text-slate-900 leading-tight whitespace-normal break-words">{selectedResource.title}</h2>
 
               {/* Description (full text) */}
               {selectedResource.description && (
