@@ -39,8 +39,10 @@ export default function App() {
   const [userDownloadCount, setUserDownloadCount] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [expandedSource, setExpandedSource] = useState(false);
 
   const FREE_LIMIT = 5;
+  const SOURCE_MAX_LENGTH = 280;
   const rotatingWords = ['descubrir', 'validar', 'compartir'];
 
   const aiModels = [
@@ -368,6 +370,7 @@ export default function App() {
 
   const handleCardClick = (resource) => {
     setSelectedResource(resource);
+    setExpandedSource(false); // Reset expanded state when opening modal
   };
 
   const handleDownloadFromModal = async () => {
@@ -849,11 +852,17 @@ export default function App() {
 
       {/* Resource Detail Modal */}
       {selectedResource && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedResource(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => {
+          setSelectedResource(null);
+          setExpandedSource(false);
+        }}>
           <div className="bg-white rounded-2xl max-w-2xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {/* Sticky Close Button */}
             <button
-              onClick={() => setSelectedResource(null)}
+              onClick={() => {
+                setSelectedResource(null);
+                setExpandedSource(false);
+              }}
               className="sticky top-4 right-4 ml-auto mr-4 mt-4 text-white hover:text-slate-200 transition z-10 bg-black/20 rounded-full p-2 float-right"
             >
               <X size={24} />
@@ -936,12 +945,42 @@ export default function App() {
               {selectedResource.originalSource && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
                   <div className="flex items-start gap-3">
-                    <BookOpen className="text-blue-600 mt-0.5" size={20} />
-                    <div>
+                    <BookOpen className="text-blue-600 mt-0.5 flex-shrink-0" size={20} />
+                    <div className="flex-1">
                       <p className="text-xs font-semibold text-blue-900 uppercase mb-1">Fuente Original</p>
-                      <p className="text-sm text-blue-800 font-medium">
-                        {selectedResource.originalSource}
-                      </p>
+                      {selectedResource.originalSource.length <= 80 ? (
+                        // Short source: display normally
+                        <p className="text-sm text-blue-800 font-medium">
+                          {selectedResource.originalSource}
+                        </p>
+                      ) : (
+                        // Long source: implement "Read more/less"
+                        <>
+                          <p className={`text-sm text-blue-800 font-medium ${expandedSource ? '' : 'line-clamp-2'}`}>
+                            {selectedResource.originalSource}
+                          </p>
+                          <button
+                            onClick={() => setExpandedSource(!expandedSource)}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-semibold mt-1 flex items-center gap-1 transition"
+                          >
+                            {expandedSource ? (
+                              <>
+                                Ver menos
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                              </>
+                            ) : (
+                              <>
+                                Ver todo
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </>
+                            )}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1209,7 +1248,7 @@ export default function App() {
                 type="text"
                 value={originalSource}
                 onChange={(e) => setOriginalSource(e.target.value)}
-                maxLength={150}
+                maxLength={SOURCE_MAX_LENGTH}
                 placeholder="Ej: Manual DGT 2025, Libro de Marketing de Kotler, BOE..."
                 className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
                   !originalSource
@@ -1217,9 +1256,20 @@ export default function App() {
                     : 'border-slate-300'
                 }`}
               />
-              <p className="text-xs text-slate-500 mt-1">
-                Indica en qué se basa este contenido para garantizar su veracidad.
-              </p>
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-xs text-slate-500">
+                  Indica en qué se basa este contenido para garantizar su veracidad.
+                </p>
+                <p className={`text-xs font-semibold ${
+                  originalSource.length > SOURCE_MAX_LENGTH * 0.9
+                    ? 'text-amber-600'
+                    : originalSource.length > SOURCE_MAX_LENGTH * 0.7
+                      ? 'text-blue-600'
+                      : 'text-slate-400'
+                }`}>
+                  {originalSource.length}/{SOURCE_MAX_LENGTH}
+                </p>
+              </div>
             </div>
 
             {/* Legal Checkbox */}
