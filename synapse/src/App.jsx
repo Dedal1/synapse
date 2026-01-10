@@ -3,6 +3,7 @@ import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookma
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
+import { loadStripe } from '@stripe/stripe-js';
 
 // Configure PDF.js worker - Use local worker for reliability with Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -371,6 +372,52 @@ export default function App() {
   const handleCardClick = (resource) => {
     setSelectedResource(resource);
     setExpandedSource(false); // Reset expanded state when opening modal
+  };
+
+  const handleUpgradeToPro = async () => {
+    if (!user) {
+      alert('Debes iniciar sesión para actualizar a PRO');
+      return;
+    }
+
+    try {
+      console.log('[Stripe] Initiating upgrade to PRO for user:', user.uid);
+
+      // Load Stripe.js
+      const stripe = await loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+      if (!stripe) {
+        throw new Error('Stripe failed to load');
+      }
+
+      // Call backend to create checkout session
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const { sessionId } = await response.json();
+      console.log('[Stripe] Checkout session created:', sessionId);
+
+      // Redirect to Stripe Checkout
+      const result = await stripe.redirectToCheckout({ sessionId });
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+    } catch (error) {
+      console.error('[Stripe] Error during upgrade:', error);
+      alert('Error al procesar el pago: ' + error.message);
+    }
   };
 
   const handleDownloadFromModal = async () => {
@@ -1467,8 +1514,8 @@ export default function App() {
             {/* CTA */}
             <button
               onClick={() => {
-                alert('Funcionalidad de pago próximamente. Por ahora, espera al próximo mes para más descargas gratuitas.');
                 setShowLimitModal(false);
+                handleUpgradeToPro();
               }}
               className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition flex items-center justify-center gap-3"
             >
