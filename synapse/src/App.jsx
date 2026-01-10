@@ -40,6 +40,7 @@ export default function App() {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [expandedSource, setExpandedSource] = useState(false);
+  const [showCookieBanner, setShowCookieBanner] = useState(true);
 
   const FREE_LIMIT = 5;
   const SOURCE_MAX_LENGTH = 280;
@@ -140,6 +141,19 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, [rotatingWords.length]);
+
+  // Check if user already accepted cookies
+  useEffect(() => {
+    const cookiesAccepted = localStorage.getItem('cookiesAccepted');
+    if (cookiesAccepted === 'true') {
+      setShowCookieBanner(false);
+    }
+  }, []);
+
+  const handleCloseCookieBanner = () => {
+    localStorage.setItem('cookiesAccepted', 'true');
+    setShowCookieBanner(false);
+  };
 
   // Subscribe to user favorites
   useEffect(() => {
@@ -1620,6 +1634,24 @@ export default function App() {
         >
           <ArrowUp size={24} />
         </button>
+      )}
+
+      {/* Cookie Banner */}
+      {showCookieBanner && (
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-4 shadow-2xl z-50 border-t border-slate-700">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+            <p className="text-sm flex-1 min-w-[250px]">
+              Usamos cookies propias y de terceros para gestionar la sesión y los pagos seguros. Al seguir navegando, aceptas su uso.
+            </p>
+            <button
+              onClick={handleCloseCookieBanner}
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-800 transition-colors"
+              aria-label="Cerrar banner de cookies"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
