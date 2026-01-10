@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Zap, Check, ArrowRight } from 'lucide-react';
+import { Zap, Check } from 'lucide-react';
 import { auth, db } from './firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import Confetti from 'react-confetti';
 
 function Success() {
   const [searchParams] = useSearchParams();
+  const [status, setStatus] = useState('Verificando pago...');
   const [showConfetti, setShowConfetti] = useState(true);
-  const [upgrading, setUpgrading] = useState(true);
   const sessionId = searchParams.get('session_id');
 
   useEffect(() => {
@@ -18,50 +19,40 @@ function Success() {
   }, []);
 
   useEffect(() => {
-    const upgradeUserToPro = async () => {
-      if (!sessionId) {
-        console.error('[Success] No session ID found');
-        window.location.href = '/';
-        return;
+    // CRITICAL: Use onAuthStateChanged to wait for Firebase auth to initialize
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        console.log('[Success] 🚀 User authenticated:', user.uid);
+        setStatus('¡Pago recibido! Activando cuenta PRO... 🚀');
+
+        try {
+          // Force write to Firestore
+          await setDoc(doc(db, 'users', user.uid), {
+            isPro: true,
+            upgradedAt: new Date().toISOString(),
+            stripeSessionId: sessionId || 'unknown',
+          }, { merge: true });
+
+          console.log('[Success] ✅ USER UPGRADED TO PRO SUCCESSFULLY');
+          setStatus('✅ ¡Todo listo! Redirigiendo...');
+
+          // Wait 3 seconds then hard reload to home
+          setTimeout(() => {
+            console.log('[Success] Redirecting to home with force reload...');
+            window.location.href = '/';
+          }, 3000);
+
+        } catch (error) {
+          console.error('[Success] ❌ ERROR UPGRADING USER:', error);
+          setStatus('❌ Hubo un error activando tu cuenta. Contacta con soporte.');
+        }
+      } else {
+        // No user yet, waiting for Firebase to initialize
+        console.log('[Success] Esperando a que Firebase detecte al usuario...');
       }
+    });
 
-      const user = auth.currentUser;
-      if (!user) {
-        console.error('[Success] No authenticated user');
-        window.location.href = '/';
-        return;
-      }
-
-      try {
-        console.log('[Success] 🚀 UPGRADING USER TO PRO:', user.uid);
-
-        // CRITICAL: Use setDoc with merge to ensure document is created/updated
-        const userRef = doc(db, 'users', user.uid);
-        await setDoc(userRef, {
-          isPro: true,
-          upgradedAt: new Date(),
-          stripeSessionId: sessionId,
-        }, { merge: true });
-
-        console.log('[Success] ✅ USER UPGRADED TO PRO SUCCESSFULLY');
-        setUpgrading(false);
-
-        // Wait 3 seconds then force reload to home
-        setTimeout(() => {
-          console.log('[Success] Redirecting to home with force reload...');
-          window.location.href = '/';
-        }, 3000);
-      } catch (error) {
-        console.error('[Success] ❌ ERROR UPGRADING USER:', error);
-        // Even if Firebase update fails, redirect after delay
-        setUpgrading(false);
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 3000);
-      }
-    };
-
-    upgradeUserToPro();
+    return () => unsubscribe();
   }, [sessionId]);
 
   return (
@@ -76,19 +67,13 @@ function Success() {
 
         {/* Title */}
         <h1 className="text-5xl font-extrabold text-slate-900 mb-4">
-          ¡Bienvenido a Synapse PRO! 🎉
+          {status.includes('✅') ? '¡Pago Exitoso!' : '¡Bienvenido a Synapse PRO!'} 🎉
         </h1>
 
         {/* Subtitle */}
-        {upgrading ? (
-          <p className="text-xl text-slate-600 mb-8">
-            ¡Pago confirmado! Actualizando tu cuenta...
-          </p>
-        ) : (
-          <p className="text-xl text-slate-600 mb-8">
-            ✅ ¡Cuenta actualizada! Redirigiendo al inicio...
-          </p>
-        )}
+        <p className="text-xl text-slate-600 mb-8">
+          {status}
+        </p>
 
         {/* Benefits */}
         <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-8 mb-8 border-2 border-indigo-200">
@@ -135,7 +120,10 @@ function Success() {
             <div className="inline-block w-3 h-3 bg-indigo-600 rounded-full mx-1 animation-delay-400"></div>
           </div>
           <p className="text-sm text-slate-500 mt-4">
-            Serás redirigido automáticamente en 3 segundos...
+            Serás redirigido automáticamente en unos segundos...
+          </p>
+          <p className="text-xs text-slate-400 mt-2">
+            ⚠️ No cierres esta ventana...
           </p>
         </div>
 
