@@ -87,10 +87,41 @@ export default function App() {
     return category ? category.color : 'bg-slate-100 text-slate-700';
   };
 
-  // Listen for auth state changes
+  // Listen for auth state changes and load user data from Firestore
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        // Load user data from Firestore to get isPro status
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const { db } = await import('./firebase');
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+
+          if (userDoc.exists()) {
+            // Merge Firebase Auth user with Firestore data
+            const userData = userDoc.data();
+            setUser({
+              ...currentUser,
+              isPro: userData.isPro || false,
+              upgradedAt: userData.upgradedAt,
+            });
+          } else {
+            // No Firestore document, use Auth user only
+            setUser({
+              ...currentUser,
+              isPro: false,
+            });
+          }
+        } catch (error) {
+          console.error('[Auth] Error loading user data:', error);
+          setUser({
+            ...currentUser,
+            isPro: false,
+          });
+        }
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
     return () => unsubscribe();
@@ -585,6 +616,16 @@ export default function App() {
           <div className="flex gap-4 items-center">
             {user ? (
               <>
+                {/* PRO badge for PRO users */}
+                {(user.isPro || false) && (
+                  <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-lg">
+                    <Zap size={16} className="fill-current" />
+                    <span className="text-sm font-bold">
+                      PRO - Descargas Ilimitadas
+                    </span>
+                  </div>
+                )}
+
                 {/* Download counter for free users */}
                 {!(user.isPro || false) && (
                   <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
