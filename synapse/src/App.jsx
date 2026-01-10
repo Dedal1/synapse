@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen } from 'lucide-react';
-import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites } from './firebase';
+import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp } from 'lucide-react';
+import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
 
@@ -26,13 +26,21 @@ export default function App() {
   const [thumbnailBlob, setThumbnailBlob] = useState(null);
   const [thumbnailPreview, setThumbnailPreview] = useState(null);
   const [generatingThumbnail, setGeneratingThumbnail] = useState(false);
+  const [previewBlobs, setPreviewBlobs] = useState([]);
   const [userFavorites, setUserFavorites] = useState([]);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [selectedAiModel, setSelectedAiModel] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [originalSource, setOriginalSource] = useState('');
   const [filterCategory, setFilterCategory] = useState('Todas');
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewPages, setPreviewPages] = useState([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [userDownloadCount, setUserDownloadCount] = useState(0);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
+  const FREE_LIMIT = 5;
   const rotatingWords = ['descubrir', 'validar', 'compartir'];
 
   const aiModels = [
@@ -114,6 +122,46 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
+  // Load user download count
+  useEffect(() => {
+    if (!user) {
+      setUserDownloadCount(0);
+      return;
+    }
+
+    const loadDownloadCount = async () => {
+      try {
+        const count = await getUserDownloadCount(user.uid);
+        setUserDownloadCount(count);
+      } catch (error) {
+        console.error("Error loading download count:", error);
+      }
+    };
+
+    loadDownloadCount();
+  }, [user]);
+
+  // Handle scroll for "Back to Top" button
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
   const loadResources = async () => {
     try {
       const pdfs = await getPDFs();
@@ -139,68 +187,96 @@ export default function App() {
     }
   };
 
-  const generateThumbnailFromPdf = async (file) => {
-    console.log('[Thumbnail] Starting generation for file:', file.name);
+  const generatePreviews = async (file) => {
+    console.log('[Previews] Starting generation for file:', file.name);
     setGeneratingThumbnail(true);
 
     try {
-      console.log('[Thumbnail] Step 1: Reading file as ArrayBuffer...');
+      console.log('[Previews] Step 1: Reading file as ArrayBuffer...');
       const arrayBuffer = await file.arrayBuffer();
-      console.log('[Thumbnail] ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
+      console.log('[Previews] ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
 
-      console.log('[Thumbnail] Step 2: Loading PDF document...');
+      console.log('[Previews] Step 2: Loading PDF document...');
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
       const pdf = await loadingTask.promise;
-      console.log('[Thumbnail] PDF loaded successfully. Pages:', pdf.numPages);
+      console.log('[Previews] PDF loaded successfully. Pages:', pdf.numPages);
 
-      console.log('[Thumbnail] Step 3: Getting first page...');
-      const page = await pdf.getPage(1);
-      console.log('[Thumbnail] Page retrieved successfully');
+      // Generate up to 3 preview pages
+      const pagesToGenerate = Math.min(3, pdf.numPages);
+      console.log(`[Previews] Generating ${pagesToGenerate} preview pages...`);
 
-      console.log('[Thumbnail] Step 4: Creating viewport...');
-      const viewport = page.getViewport({ scale: 1.5 });
-      console.log('[Thumbnail] Viewport dimensions:', viewport.width, 'x', viewport.height);
+      const previewBlobs = [];
+      const previewUrls = [];
 
-      console.log('[Thumbnail] Step 5: Creating canvas...');
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-      console.log('[Thumbnail] Canvas created:', canvas.width, 'x', canvas.height);
+      for (let i = 1; i <= pagesToGenerate; i++) {
+        console.log(`[Previews] Step ${i}: Getting page ${i}...`);
+        const page = await pdf.getPage(i);
 
-      console.log('[Thumbnail] Step 6: Rendering page to canvas...');
-      await page.render({ canvasContext: context, viewport: viewport }).promise;
-      console.log('[Thumbnail] Page rendered successfully');
+        console.log(`[Previews] Creating viewport for page ${i}...`);
+        const viewport = page.getViewport({ scale: 1.5 });
+        console.log(`[Previews] Viewport dimensions: ${viewport.width} x ${viewport.height}`);
 
-      console.log('[Thumbnail] Step 7: Converting canvas to blob...');
-      // Convert canvas to blob
-      const blob = await new Promise((resolve) => {
-        canvas.toBlob(resolve, 'image/jpeg', 0.85);
-      });
-      console.log('[Thumbnail] Blob created. Size:', blob?.size, 'bytes');
+        console.log(`[Previews] Creating canvas for page ${i}...`);
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
 
-      // Create preview URL
-      const previewUrl = URL.createObjectURL(blob);
-      console.log('[Thumbnail] Preview URL created:', previewUrl);
+        console.log(`[Previews] Rendering page ${i} to canvas...`);
+        await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-      setThumbnailBlob(blob);
-      setThumbnailPreview(previewUrl);
+        console.log(`[Previews] Converting page ${i} to blob...`);
+        const blob = await new Promise((resolve) => {
+          canvas.toBlob(resolve, 'image/jpeg', 0.85);
+        });
+        console.log(`[Previews] Blob ${i} created. Size:`, blob?.size, 'bytes');
+
+        previewBlobs.push(blob);
+
+        // Create preview URL for display during upload
+        const previewUrl = URL.createObjectURL(blob);
+        previewUrls.push(previewUrl);
+      }
+
+      // Set first page as thumbnail for card display
+      setThumbnailBlob(previewBlobs[0]);
+      setThumbnailPreview(previewUrls[0]);
+
       setGeneratingThumbnail(false);
-      console.log('[Thumbnail] ✅ Generation completed successfully');
+      console.log('[Previews] ✅ Generation completed successfully');
+
+      return previewBlobs; // Return all blobs for upload
     } catch (error) {
-      console.error('[Thumbnail] ❌ ERROR during generation:', error);
-      console.error('[Thumbnail] Error details:', {
+      console.error('[Previews] ❌ ERROR during generation:', error);
+      console.error('[Previews] Error details:', {
         name: error.name,
         message: error.message,
         stack: error.stack
       });
       setGeneratingThumbnail(false);
-      // Continue without thumbnail - fallback to icon
       setThumbnailBlob(null);
       setThumbnailPreview(null);
 
-      // Show user-friendly error
-      alert('No se pudo generar la vista previa del PDF. El archivo se subirá sin miniatura.');
+      alert('No se pudo generar la vista previa del PDF. El archivo se subirá sin miniaturas.');
+      return []; // Return empty array on error
+    }
+  };
+
+  const loadPdfPreview = (resource) => {
+    console.log('[Preview] Loading pre-generated previews for:', resource.title);
+    setShowPreviewModal(true);
+    setLoadingPreview(true);
+
+    // Check if resource has pre-generated preview URLs
+    if (resource.previewUrls && resource.previewUrls.length > 0) {
+      console.log(`[Preview] Found ${resource.previewUrls.length} pre-generated preview pages`);
+      setPreviewPages(resource.previewUrls);
+      setLoadingPreview(false);
+    } else {
+      // No previews available (old resource)
+      console.log('[Preview] No pre-generated previews found - showing fallback');
+      setPreviewPages([]);
+      setLoadingPreview(false);
     }
   };
 
@@ -215,8 +291,9 @@ export default function App() {
     setSelectedFile(file);
     setIsDragging(false);
 
-    // Generate thumbnail automatically
-    await generateThumbnailFromPdf(file);
+    // Generate preview pages (thumbnail + full previews)
+    const blobs = await generatePreviews(file);
+    setPreviewBlobs(blobs);
   };
 
   const handleFileInput = (e) => {
@@ -241,7 +318,9 @@ export default function App() {
         return;
       }
 
-      await uploadPDF(selectedFile, user, resourceDescription, selectedAiModel, selectedCategory, originalSource, thumbnailBlob);
+      // Upload with preview blobs (this includes uploading 3 preview images)
+      console.log('[Upload] Starting upload with', previewBlobs.length, 'preview pages');
+      await uploadPDF(selectedFile, user, resourceDescription, selectedAiModel, selectedCategory, originalSource, thumbnailBlob, previewBlobs);
       await loadResources();
 
       // Reset form
@@ -255,6 +334,7 @@ export default function App() {
       setIsDragging(false);
       setThumbnailBlob(null);
       setThumbnailPreview(null);
+      setPreviewBlobs([]);
 
       alert('PDF subido exitosamente!');
     } catch (error) {
@@ -299,6 +379,30 @@ export default function App() {
     if (!selectedResource) return;
 
     try {
+      // Check if user is PRO (for future implementation)
+      const isPro = user.isPro || false; // TODO: Implement PRO status in Firebase
+
+      if (!isPro) {
+        // Check download limit for free users
+        if (userDownloadCount >= FREE_LIMIT) {
+          setShowLimitModal(true);
+          return;
+        }
+
+        // Increment user download count
+        await incrementUserDownloadCount(user.uid);
+        setUserDownloadCount(prev => prev + 1);
+
+        // Show remaining downloads toast
+        const remaining = FREE_LIMIT - userDownloadCount - 1;
+        if (remaining > 0) {
+          alert(`Descarga iniciada. Te quedan ${remaining} descargas gratuitas este mes.`);
+        } else {
+          alert('Esta fue tu última descarga gratuita del mes. Actualiza a PRO para descargas ilimitadas.');
+        }
+      }
+
+      // Proceed with download
       await incrementDownloads(selectedResource.id);
       window.open(selectedResource.fileUrl, '_blank');
       await loadResources();
@@ -439,6 +543,15 @@ export default function App() {
           <div className="flex gap-4 items-center">
             {user ? (
               <>
+                {/* Download counter for free users */}
+                {!(user.isPro || false) && (
+                  <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
+                    <Download size={16} />
+                    <span className="text-sm font-semibold">
+                      Descargas: {userDownloadCount}/{FREE_LIMIT}
+                    </span>
+                  </div>
+                )}
                 <button
                   onClick={() => setShowUploadModal(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition"
@@ -834,6 +947,33 @@ export default function App() {
                 </div>
               )}
 
+              {/* Action buttons - MOVED UP for better conversion */}
+              <div className="flex flex-col gap-3 mb-6">
+                {/* Preview button */}
+                <button
+                  onClick={() => loadPdfPreview(selectedResource)}
+                  className="w-full py-4 bg-white text-indigo-600 rounded-full font-bold text-lg hover:bg-indigo-50 transition flex items-center justify-center gap-3 border-2 border-indigo-600"
+                >
+                  <Eye size={24} />
+                  Vista Previa (Primeras 3 páginas)
+                </button>
+
+                {/* Download button */}
+                <button
+                  onClick={handleDownloadFromModal}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-full font-bold text-lg hover:bg-indigo-700 transition flex items-center justify-center gap-3"
+                >
+                  <Download size={24} />
+                  {user ? 'Descargar Recurso Completo' : 'Inicia sesión para descargar'}
+                </button>
+
+                {!user && (
+                  <p className="text-center text-sm text-slate-500">
+                    Necesitas estar registrado para descargar
+                  </p>
+                )}
+              </div>
+
               {/* Validation Section */}
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 border border-green-200">
                 <h3 className="font-bold text-lg text-slate-900 mb-3">
@@ -863,21 +1003,6 @@ export default function App() {
                   </div>
                 )}
               </div>
-
-              {/* Botón de descarga grande */}
-              <button
-                onClick={handleDownloadFromModal}
-                className="w-full py-4 bg-indigo-600 text-white rounded-full font-bold text-lg hover:bg-indigo-700 transition flex items-center justify-center gap-3"
-              >
-                <Download size={24} />
-                {user ? 'Descargar Recurso' : 'Inicia sesión para descargar'}
-              </button>
-
-              {!user && (
-                <p className="text-center text-sm text-slate-500 mt-4">
-                  Necesitas estar registrado para acceder a este contenido
-                </p>
-              )}
             </div>
           </div>
         </div>
@@ -947,7 +1072,7 @@ export default function App() {
                 {/* Thumbnail Preview */}
                 {generatingThumbnail && (
                   <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
-                    <p className="text-sm text-blue-700 font-medium">Generando vista previa...</p>
+                    <p className="text-sm text-blue-700 font-medium">Generando vistas previas (3 páginas)...</p>
                   </div>
                 )}
 
@@ -1123,8 +1248,8 @@ export default function App() {
             >
               {uploading ? (
                 <>
-                  <Upload size={24} className="animate-pulse" />
-                  Publicando...
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  Subiendo vistas previas...
                 </>
               ) : (
                 <>
@@ -1153,6 +1278,170 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* PDF Preview Modal */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowPreviewModal(false)}>
+          <div className="bg-white rounded-2xl max-w-4xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center z-10 rounded-t-2xl">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Vista Previa</h2>
+                <p className="text-sm text-slate-600 mt-1">Primeras 3 páginas del documento</p>
+              </div>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="text-slate-400 hover:text-slate-900 transition"
+              >
+                <X size={28} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 px-8">
+              {loadingPreview ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                  <p className="text-slate-600">Cargando vista previa...</p>
+                </div>
+              ) : previewPages.length === 0 ? (
+                /* Fallback error state */
+                <div className="text-center py-12">
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-100 rounded-full mb-4 mx-auto">
+                    <FileText className="text-amber-600" size={40} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">
+                    Vista previa no disponible
+                  </h3>
+                  <p className="text-slate-600 mb-6 max-w-md mx-auto">
+                    No pudimos generar la vista previa para este documento. Puedes descargarlo directamente para ver su contenido completo.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowPreviewModal(false);
+                      handleDownloadFromModal();
+                    }}
+                    className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2"
+                  >
+                    <Download size={20} />
+                    Descargar Documento
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6 pb-4">
+                  {previewPages.map((pageUrl, index) => (
+                    <div key={index} className="border-2 border-slate-200 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+                      <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
+                        <p className="text-sm font-semibold text-slate-700">Página {index + 1}</p>
+                      </div>
+                      <img
+                        src={pageUrl}
+                        alt={`Página ${index + 1}`}
+                        className="w-full rounded-b-xl"
+                      />
+                    </div>
+                  ))}
+
+                  {/* CTA to download */}
+                  <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6 text-center shadow-md">
+                    <p className="text-indigo-900 font-semibold mb-4">
+                      ¿Te gusta lo que ves? Descarga el documento completo
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowPreviewModal(false);
+                        // El modal de recurso sigue abierto, solo ejecutar download
+                        handleDownloadFromModal();
+                      }}
+                      className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2"
+                    >
+                      <Download size={20} />
+                      Descargar Completo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Limit Reached Modal */}
+      {showLimitModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowLimitModal(false)}>
+          <div className="bg-white rounded-2xl max-w-md w-full relative shadow-2xl p-8" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowLimitModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 transition"
+            >
+              <X size={24} />
+            </button>
+
+            {/* Icon */}
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4">
+                <Zap className="text-amber-600" size={32} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                Límite Gratuito Alcanzado
+              </h2>
+              <p className="text-slate-600">
+                Has usado tus <span className="font-bold">{FREE_LIMIT} descargas gratuitas</span> de este mes.
+              </p>
+            </div>
+
+            {/* Benefits list */}
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 mb-6 border border-indigo-200">
+              <p className="font-bold text-indigo-900 mb-3">Actualiza a PRO y obtén:</p>
+              <ul className="space-y-2 text-sm text-indigo-800">
+                <li className="flex items-start gap-2">
+                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Descargas ilimitadas</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Acceso prioritario a nuevos recursos</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Sin publicidad</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Soporte prioritario</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* CTA */}
+            <button
+              onClick={() => {
+                alert('Funcionalidad de pago próximamente. Por ahora, espera al próximo mes para más descargas gratuitas.');
+                setShowLimitModal(false);
+              }}
+              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition flex items-center justify-center gap-3"
+            >
+              <Zap size={24} />
+              Actualizar a PRO
+            </button>
+
+            <p className="text-center text-xs text-slate-500 mt-4">
+              Tu límite se reiniciará el próximo mes
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating "Back to Top" Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 z-50 hover:scale-110"
+          aria-label="Volver arriba"
+        >
+          <ArrowUp size={24} />
+        </button>
       )}
     </div>
   );

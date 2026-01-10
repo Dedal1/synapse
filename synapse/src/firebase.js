@@ -43,7 +43,7 @@ export const logout = async () => {
   }
 };
 
-export const uploadPDF = async (file, user, description = '', aiModel = 'NotebookLM', category = 'Otros', originalSource = '', thumbnailBlob = null) => {
+export const uploadPDF = async (file, user, description = '', aiModel = 'NotebookLM', category = 'Otros', originalSource = '', thumbnailBlob = null, previewBlobs = []) => {
   try {
     const timestamp = Date.now();
 
@@ -65,6 +65,24 @@ export const uploadPDF = async (file, user, description = '', aiModel = 'Noteboo
       }
     }
 
+    // Upload preview pages (up to 3 pages)
+    const previewUrls = [];
+    if (previewBlobs && previewBlobs.length > 0) {
+      console.log(`[Upload] Uploading ${previewBlobs.length} preview pages...`);
+      for (let i = 0; i < previewBlobs.length; i++) {
+        try {
+          const previewRef = ref(storage, `previews/${timestamp}_${file.name.replace('.pdf', '')}_page${i + 1}.jpg`);
+          const previewSnapshot = await uploadBytes(previewRef, previewBlobs[i]);
+          const previewUrl = await getDownloadURL(previewSnapshot.ref);
+          previewUrls.push(previewUrl);
+          console.log(`[Upload] Preview page ${i + 1} uploaded successfully`);
+        } catch (previewError) {
+          console.warn(`Failed to upload preview page ${i + 1}:`, previewError);
+          // Continue without this preview page
+        }
+      }
+    }
+
     // Generate unique avatar seed (fallback for old resources)
     const avatarSeed = `${timestamp}-${Math.random().toString(36).substring(7)}`;
     const avatarUrl = `https://api.dicebear.com/9.x/shapes/svg?seed=${avatarSeed}`;
@@ -81,12 +99,14 @@ export const uploadPDF = async (file, user, description = '', aiModel = 'Noteboo
       userPhoto: user.photoURL || '',
       validatedBy: [], // Array de UIDs que han validado
       avatarUrl: avatarUrl, // Fallback for old resources
-      thumbnailUrl: thumbnailUrl, // New: actual PDF thumbnail
+      thumbnailUrl: thumbnailUrl, // New: actual PDF thumbnail (page 1)
+      previewUrls: previewUrls, // NEW: Array of preview URLs (pages 1-3)
       description: description || '',
       category: category,
       originalSource: originalSource
     });
 
+    console.log(`[Upload] Resource created with ${previewUrls.length} preview pages`);
     return { id: docRef.id, fileUrl };
   } catch (error) {
     console.error("Error uploading PDF:", error);
@@ -258,4 +278,57 @@ export const subscribeToFavorites = (userId, callback) => {
     });
     callback(favorites);
   });
+};
+
+// ============================================
+// DOWNLOAD LIMITS (FREEMIUM)
+// ============================================
+
+export const getUserDownloadCount = async (userId) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      // Create user document if doesn't exist
+      await setDoc(userRef, {
+        downloadsCount: 0,
+        createdAt: serverTimestamp()
+      });
+      return 0;
+    }
+
+    const data = userSnap.data();
+    return data.downloadsCount || 0;
+  } catch (error) {
+    console.error("Error getting download count:", error);
+    throw error;
+  }
+};
+
+export const incrementUserDownloadCount = async (userId) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      // Create user document with count 1
+      await setDoc(userRef, {
+        downloadsCount: 1,
+        lastDownloadAt: serverTimestamp(),
+        createdAt: serverTimestamp()
+      });
+    } else {
+      // Increment existing count
+      await updateDoc(userRef, {
+        downloadsCount: increment(1),
+        lastDownloadAt: serverTimestamp()
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error incrementing download count:", error);
+    throw error;
+  }
 };
