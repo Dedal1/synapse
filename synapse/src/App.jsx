@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp } from 'lucide-react';
+import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings } from 'lucide-react';
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -217,6 +217,42 @@ export default function App() {
       await logout();
     } catch (error) {
       alert("Error al cerrar sesión: " + error.message);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    if (!user || !user.email) {
+      alert('Debes iniciar sesión para gestionar tu suscripción');
+      return;
+    }
+
+    try {
+      console.log('[Portal] Opening Customer Portal for:', user.email);
+
+      // Call backend to create portal session
+      const response = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user.email,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create portal session');
+      }
+
+      const data = await response.json();
+      console.log('[Portal] Redirecting to Customer Portal');
+
+      // Redirect to Stripe Customer Portal
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('[Portal] Error:', error);
+      alert('Error al abrir el portal de gestión: ' + error.message);
     }
   };
 
@@ -647,6 +683,18 @@ export default function App() {
                     alt={user.displayName}
                     className="w-10 h-10 rounded-full border-2 border-indigo-600"
                   />
+
+                  {/* Manage Subscription button - Only for PRO users */}
+                  {(user.isPro || false) && (
+                    <button
+                      onClick={handleManageSubscription}
+                      className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-semibold transition"
+                    >
+                      <Settings size={16} />
+                      Gestionar Suscripción
+                    </button>
+                  )}
+
                   <button
                     onClick={handleLogout}
                     className="text-sm text-slate-600 hover:text-slate-900"
