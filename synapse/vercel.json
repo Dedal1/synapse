@@ -9,9 +9,5 @@
     "api/**/*.js": {
       "maxDuration": 10
     }
-  },
-  "env": {
-    "STRIPE_SECRET_KEY": "@stripe-secret-key",
-    "STRIPE_PRICE_ID": "@stripe-price-id"
   }
 }
