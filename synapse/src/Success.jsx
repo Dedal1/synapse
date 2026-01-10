@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Zap, Check, ArrowRight } from 'lucide-react';
 import { auth, db } from './firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import Confetti from 'react-confetti';
 
 function Success() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [showConfetti, setShowConfetti] = useState(true);
   const [upgrading, setUpgrading] = useState(true);
   const sessionId = searchParams.get('session_id');
@@ -22,39 +21,48 @@ function Success() {
     const upgradeUserToPro = async () => {
       if (!sessionId) {
         console.error('[Success] No session ID found');
-        navigate('/');
+        window.location.href = '/';
         return;
       }
 
       const user = auth.currentUser;
       if (!user) {
         console.error('[Success] No authenticated user');
-        navigate('/');
+        window.location.href = '/';
         return;
       }
 
       try {
-        console.log('[Success] Upgrading user to PRO:', user.uid);
+        console.log('[Success] 🚀 UPGRADING USER TO PRO:', user.uid);
 
-        // Update user document in Firestore
+        // CRITICAL: Use setDoc with merge to ensure document is created/updated
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, {
+        await setDoc(userRef, {
           isPro: true,
           upgradedAt: new Date(),
           stripeSessionId: sessionId,
-        });
+        }, { merge: true });
 
-        console.log('[Success] ✅ User upgraded to PRO successfully');
+        console.log('[Success] ✅ USER UPGRADED TO PRO SUCCESSFULLY');
         setUpgrading(false);
+
+        // Wait 3 seconds then force reload to home
+        setTimeout(() => {
+          console.log('[Success] Redirecting to home with force reload...');
+          window.location.href = '/';
+        }, 3000);
       } catch (error) {
-        console.error('[Success] Error upgrading user:', error);
-        // Even if Firebase update fails, show success (Stripe payment succeeded)
+        console.error('[Success] ❌ ERROR UPGRADING USER:', error);
+        // Even if Firebase update fails, redirect after delay
         setUpgrading(false);
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
       }
     };
 
     upgradeUserToPro();
-  }, [sessionId, navigate]);
+  }, [sessionId]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
@@ -74,11 +82,11 @@ function Success() {
         {/* Subtitle */}
         {upgrading ? (
           <p className="text-xl text-slate-600 mb-8">
-            Actualizando tu cuenta...
+            ¡Pago confirmado! Actualizando tu cuenta...
           </p>
         ) : (
           <p className="text-xl text-slate-600 mb-8">
-            Tu suscripción ha sido activada exitosamente
+            ✅ ¡Cuenta actualizada! Redirigiendo al inicio...
           </p>
         )}
 
@@ -119,15 +127,17 @@ function Success() {
           </div>
         </div>
 
-        {/* CTA Button */}
-        <button
-          onClick={() => navigate('/')}
-          disabled={upgrading}
-          className="px-10 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition inline-flex items-center gap-3 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {upgrading ? 'Procesando...' : 'Explorar Recursos'}
-          <ArrowRight size={24} />
-        </button>
+        {/* Auto-redirect message */}
+        <div className="text-center">
+          <div className="inline-block animate-pulse">
+            <div className="inline-block w-3 h-3 bg-indigo-600 rounded-full mx-1"></div>
+            <div className="inline-block w-3 h-3 bg-indigo-600 rounded-full mx-1 animation-delay-200"></div>
+            <div className="inline-block w-3 h-3 bg-indigo-600 rounded-full mx-1 animation-delay-400"></div>
+          </div>
+          <p className="text-sm text-slate-500 mt-4">
+            Serás redirigido automáticamente en 3 segundos...
+          </p>
+        </div>
 
         {/* Session info (for debugging) */}
         {sessionId && (
