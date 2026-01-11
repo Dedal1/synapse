@@ -5,6 +5,7 @@ import { HelmetProvider } from 'react-helmet-async'
 import './index.css'
 import App from './App.jsx'
 import Success from './Success.jsx'
+import ResourcePage from './ResourcePage.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -12,6 +13,7 @@ createRoot(document.getElementById('root')).render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<App />} />
+          <Route path="/resource/:id" element={<ResourcePage />} />
           <Route path="/success" element={<Success />} />
         </Routes>
       </BrowserRouter>
