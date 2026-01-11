@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings } from 'lucide-react';
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -654,6 +655,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      {/* SEO - Default Meta Tags for Home */}
+      <Helmet>
+        <title>Synapse | Tu Biblioteca de IA</title>
+        <meta name="description" content="Descubre y comparte resúmenes verificados de Inteligencia Artificial. La comunidad para aprender IA." />
+      </Helmet>
+
       {/* Navbar */}
       <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
@@ -998,6 +1005,20 @@ export default function App() {
           setSelectedResource(null);
           setExpandedSource(false);
         }}>
+          {/* SEO - Dynamic Meta Tags for Resource */}
+          <Helmet>
+            <title>{selectedResource.title} | Synapse</title>
+            <meta
+              name="description"
+              content={selectedResource.description
+                ? (selectedResource.description.length > 160
+                    ? selectedResource.description.substring(0, 160) + '...'
+                    : selectedResource.description)
+                : `Descarga ${selectedResource.title} - Resumen de IA verificado por la comunidad en Synapse.`
+              }
+            />
+          </Helmet>
+
           <div className="bg-white rounded-2xl max-w-2xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {/* Sticky Close Button */}
             <button
