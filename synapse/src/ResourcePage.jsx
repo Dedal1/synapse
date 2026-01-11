@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { ArrowLeft, Download, Check, Zap, User, BookOpen, Eye, FileText } from 'lucide-react';
+import { ArrowLeft, Download, Check, Zap, User, BookOpen, Eye, FileText, X } from 'lucide-react';
 import { auth, getPDFs, incrementDownloads, addValidation, removeValidation, deleteResource, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -14,6 +14,9 @@ function ResourcePage() {
   const [expandedSource, setExpandedSource] = useState(false);
   const [userDownloadCount, setUserDownloadCount] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewPages, setPreviewPages] = useState([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const FREE_LIMIT = 5;
 
@@ -195,8 +198,21 @@ function ResourcePage() {
   };
 
   const handlePreview = () => {
-    // Load preview logic here if needed
-    console.log('Preview functionality');
+    console.log('[Preview] Loading preview for:', resource.title);
+    setShowPreviewModal(true);
+    setLoadingPreview(true);
+
+    // Check if resource has pre-generated preview URLs
+    if (resource.previewUrls && resource.previewUrls.length > 0) {
+      console.log(`[Preview] Found ${resource.previewUrls.length} pre-generated preview pages`);
+      setPreviewPages(resource.previewUrls);
+      setLoadingPreview(false);
+    } else {
+      // No previews available
+      console.log('[Preview] No pre-generated previews found');
+      setPreviewPages([]);
+      setLoadingPreview(false);
+    }
   };
 
   if (loading) {
@@ -499,6 +515,73 @@ function ResourcePage() {
             >
               Cerrar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Preview Modal */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowPreviewModal(false)}>
+          <div className="bg-white rounded-2xl max-w-4xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center z-10 rounded-t-2xl">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Vista Previa</h2>
+                <p className="text-sm text-slate-600 mt-1">Primeras 3 páginas del documento</p>
+              </div>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="text-slate-400 hover:text-slate-900 transition"
+              >
+                <X size={28} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 px-8">
+              {loadingPreview ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                  <p className="text-slate-600">Cargando vista previa...</p>
+                </div>
+              ) : previewPages.length > 0 ? (
+                <div className="space-y-6">
+                  {previewPages.map((pageUrl, index) => (
+                    <div key={index} className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                      <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
+                        <p className="text-sm font-semibold text-slate-700">Página {index + 1}</p>
+                      </div>
+                      <div className="p-4 bg-white flex justify-center">
+                        <img
+                          src={pageUrl}
+                          alt={`Página ${index + 1}`}
+                          className="max-w-full h-auto rounded shadow-md"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <FileText className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-600">No hay vista previa disponible para este documento.</p>
+                  <p className="text-sm text-slate-500 mt-2">Descarga el PDF completo para ver su contenido.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-slate-50 border-t border-slate-200 p-6 flex justify-between items-center rounded-b-2xl">
+              <p className="text-sm text-slate-600">
+                Para ver el documento completo, descárgalo usando el botón de descarga.
+              </p>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="px-6 py-2 bg-slate-200 text-slate-700 rounded-full hover:bg-slate-300 transition font-semibold"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

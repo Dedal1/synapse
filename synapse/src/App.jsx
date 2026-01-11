@@ -984,6 +984,21 @@ export default function App() {
                     </p>
                   </div>
 
+                  {/* Preview Button (if available) */}
+                  {resource.previewUrls && resource.previewUrls.length > 0 && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        loadPdfPreview(resource);
+                      }}
+                      className="w-full mb-4 py-2.5 px-4 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
+                    >
+                      <Eye size={18} />
+                      Vista Previa
+                    </button>
+                  )}
+
                   {/* Footer Info */}
                   <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
                     <span className="text-sm text-slate-600 font-medium truncate">
