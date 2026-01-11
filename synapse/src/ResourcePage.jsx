@@ -419,6 +419,89 @@ function ResourcePage() {
           </div>
         </div>
       </div>
+
+      {/* Download Limit Modal */}
+      {showLimitModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 text-center relative">
+            <button
+              onClick={() => setShowLimitModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full mb-6">
+              <Zap className="text-white" size={40} />
+            </div>
+
+            <h2 className="text-3xl font-extrabold text-slate-900 mb-4">
+              ¡Límite alcanzado! 🚀
+            </h2>
+
+            <p className="text-lg text-slate-600 mb-6">
+              Has alcanzado tu límite de <strong>{FREE_LIMIT} descargas gratuitas</strong> este mes.
+            </p>
+
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border-2 border-indigo-200">
+              <p className="font-bold text-indigo-900 mb-4">Con Synapse PRO obtienes:</p>
+              <div className="space-y-3 text-left">
+                <div className="flex items-center gap-3">
+                  <Check size={20} className="text-green-600 flex-shrink-0" />
+                  <span className="text-slate-800">Descargas ilimitadas</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Check size={20} className="text-green-600 flex-shrink-0" />
+                  <span className="text-slate-800">Acceso prioritario a nuevos recursos</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Check size={20} className="text-green-600 flex-shrink-0" />
+                  <span className="text-slate-800">Sin publicidad</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Check size={20} className="text-green-600 flex-shrink-0" />
+                  <span className="text-slate-800">Soporte prioritario</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={async () => {
+                try {
+                  const { loadStripe } = await import('@stripe/stripe-js');
+                  const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+                  const response = await fetch('/api/create-checkout-session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: user.uid }),
+                  });
+
+                  const data = await response.json();
+                  if (!response.ok) throw new Error(data.error);
+
+                  window.location.href = data.url;
+                } catch (error) {
+                  console.error('[Stripe Checkout]', error);
+                  alert('Error al procesar el pago: ' + error.message);
+                }
+              }}
+              className="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg"
+            >
+              Actualizar a PRO - 9.99€/mes
+            </button>
+
+            <button
+              onClick={() => setShowLimitModal(false)}
+              className="mt-3 text-sm text-slate-500 hover:text-slate-700"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
