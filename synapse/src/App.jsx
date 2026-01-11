@@ -919,20 +919,37 @@ export default function App() {
                   )}
 
                   {/* Top-right badges/buttons */}
-                  {!user && (
-                    <div className="absolute top-3 right-3 bg-white/95 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-semibold shadow-sm">
-                      Login requerido
-                    </div>
-                  )}
-                  {user && user.uid === resource.userId && (
-                    <button
-                      onClick={(e) => handleDeleteResource(e, resource)}
-                      className="absolute top-3 right-3 p-2 bg-white/95 text-red-600 rounded-full hover:bg-red-50 transition shadow-sm"
-                      title="Eliminar recurso"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                  <div className="absolute top-3 right-3 flex gap-2 z-10">
+                    {/* Preview button (Eye overlay) */}
+                    {resource.previewUrls && resource.previewUrls.length > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          loadPdfPreview(resource);
+                        }}
+                        className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition shadow-sm group"
+                        title="Vista rápida"
+                      >
+                        <Eye size={18} className="text-white" />
+                      </button>
+                    )}
+
+                    {!user && (
+                      <div className="bg-white/95 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-semibold shadow-sm">
+                        Login requerido
+                      </div>
+                    )}
+                    {user && user.uid === resource.userId && (
+                      <button
+                        onClick={(e) => handleDeleteResource(e, resource)}
+                        className="p-2 bg-white/95 text-red-600 rounded-full hover:bg-red-50 transition shadow-sm"
+                        title="Eliminar recurso"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Card Content */}
@@ -983,21 +1000,6 @@ export default function App() {
                       {validationCount} {validationCount === 1 ? 'validación' : 'validaciones'}
                     </p>
                   </div>
-
-                  {/* Preview Button (if available) */}
-                  {resource.previewUrls && resource.previewUrls.length > 0 && (
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        loadPdfPreview(resource);
-                      }}
-                      className="w-full mb-4 py-2.5 px-4 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
-                    >
-                      <Eye size={18} />
-                      Vista Previa
-                    </button>
-                  )}
 
                   {/* Footer Info */}
                   <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
