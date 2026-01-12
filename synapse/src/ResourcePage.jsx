@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { ArrowLeft, Download, Check, Zap, User, BookOpen, Eye, FileText, X } from 'lucide-react';
+import { ArrowLeft, Download, Check, Zap, User, BookOpen, FileText, X, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { auth, getPDFs, incrementDownloads, addValidation, removeValidation, deleteResource, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -14,9 +14,8 @@ function ResourcePage() {
   const [expandedSource, setExpandedSource] = useState(false);
   const [userDownloadCount, setUserDownloadCount] = useState(0);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
-  const [previewPages, setPreviewPages] = useState([]);
-  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const FREE_LIMIT = 5;
 
@@ -197,23 +196,34 @@ function ResourcePage() {
     }
   };
 
-  const handlePreview = () => {
-    console.log('[Preview] Loading preview for:', resource.title);
-    setShowPreviewModal(true);
-    setLoadingPreview(true);
+  const handleOpenLightbox = (index) => {
+    setCurrentImageIndex(index);
+    setLightboxOpen(true);
+  };
 
-    // Check if resource has pre-generated preview URLs
-    if (resource.previewUrls && resource.previewUrls.length > 0) {
-      console.log(`[Preview] Found ${resource.previewUrls.length} pre-generated preview pages`);
-      setPreviewPages(resource.previewUrls);
-      setLoadingPreview(false);
-    } else {
-      // No previews available
-      console.log('[Preview] No pre-generated previews found');
-      setPreviewPages([]);
-      setLoadingPreview(false);
+  const handleNextImage = () => {
+    if (resource.previewUrls && currentImageIndex < resource.previewUrls.length - 1) {
+      setCurrentImageIndex(currentImageIndex + 1);
     }
   };
+
+  const handlePrevImage = () => {
+    if (currentImageIndex > 0) {
+      setCurrentImageIndex(currentImageIndex - 1);
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    if (!lightboxOpen) return;
+    if (e.key === 'ArrowRight') handleNextImage();
+    if (e.key === 'ArrowLeft') handlePrevImage();
+    if (e.key === 'Escape') setLightboxOpen(false);
+  };
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [lightboxOpen, currentImageIndex]);
 
   if (loading) {
     return (
@@ -246,113 +256,102 @@ function ResourcePage() {
         />
       </Helmet>
 
-      {/* Header with Back Button */}
-      <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-4">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-full transition"
-          >
-            <ArrowLeft size={20} />
-            <span className="hidden sm:inline">Volver a la Biblioteca</span>
-            <span className="sm:hidden">Volver</span>
-          </button>
-          <div className="flex items-center gap-2 ml-auto">
-            <div className="bg-indigo-600 p-2 rounded-lg">
-              <Zap className="text-white" size={20} />
-            </div>
-            <span className="text-xl font-bold">Synapse</span>
-          </div>
-        </div>
-      </nav>
-
-      {/* Resource Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          {/* Header - Thumbnail or Gradient with Icon */}
-          <div className={`w-full relative flex items-center justify-center overflow-hidden ${
-            resource.thumbnailUrl ? 'h-96' : `h-64 bg-gradient-to-br ${getGradient(resource.id)}`
-          }`}>
-            {resource.thumbnailUrl ? (
+      {/* Hero Header Inmersivo */}
+      <div className="relative h-[70vh] min-h-[500px] overflow-hidden">
+        {/* Background Image with Blur */}
+        <div className="absolute inset-0">
+          {resource.thumbnailUrl ? (
+            <>
               <img
                 src={resource.thumbnailUrl}
                 alt={resource.title}
-                className="w-full h-full object-cover block"
-                style={{ objectPosition: 'center top' }}
+                className="w-full h-full object-cover blur-xl scale-110"
               />
-            ) : resource.avatarUrl ? (
-              <img
-                src={resource.avatarUrl}
-                alt={resource.title}
-                className="w-32 h-32 drop-shadow-2xl"
-              />
-            ) : (
-              <FileText className="h-24 w-24 text-white drop-shadow-2xl" />
-            )}
+              <div className="absolute inset-0 bg-black/70"></div>
+            </>
+          ) : (
+            <div className={`w-full h-full bg-gradient-to-br ${getGradient(resource.id)}`}>
+              <div className="absolute inset-0 bg-black/50"></div>
+            </div>
+          )}
+        </div>
+
+        {/* Back Button - Floating */}
+        <button
+          onClick={() => navigate('/')}
+          className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md text-white hover:bg-white/20 rounded-full transition border border-white/20"
+        >
+          <ArrowLeft size={20} />
+          <span className="hidden sm:inline">Volver</span>
+        </button>
+
+        {/* Synapse Logo - Floating */}
+        <div className="absolute top-6 right-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
+          <div className="bg-white/20 p-1.5 rounded-lg">
+            <Zap className="text-white" size={18} />
           </div>
+          <span className="text-lg font-bold text-white">Synapse</span>
+        </div>
 
-          {/* Content */}
-          <div className="p-8 pb-12">
-            {/* Title */}
-            <h1 className="text-4xl font-extrabold mb-2 text-center text-slate-900 leading-tight whitespace-normal break-words">
-              {resource.title}
-            </h1>
+        {/* Hero Content */}
+        <div className="relative z-10 h-full flex flex-col items-center justify-center px-4 text-center">
+          <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-6 leading-tight max-w-4xl drop-shadow-2xl">
+            {resource.title}
+          </h1>
 
-            {/* Description */}
-            {resource.description && (
-              <p className="text-base text-slate-700 text-center mb-4 leading-relaxed max-w-xl mx-auto">
-                {resource.description}
-              </p>
-            )}
+          {resource.description && (
+            <p className="text-xl text-white/90 mb-8 max-w-2xl leading-relaxed drop-shadow-lg">
+              {resource.description}
+            </p>
+          )}
 
-            {/* Category Badge */}
-            {resource.category && (
-              <div className="text-center mb-4">
-                <span className={`inline-block px-4 py-2 text-sm font-semibold rounded-full ${getCategoryColor(resource.category)}`}>
-                  {resource.category}
-                </span>
-              </div>
-            )}
+          {/* Category Badge */}
+          {resource.category && (
+            <span className={`inline-block px-6 py-2 text-sm font-semibold rounded-full ${getCategoryColor(resource.category)} shadow-lg mb-4`}>
+              {resource.category}
+            </span>
+          )}
 
-            <p className="text-center text-slate-500 mb-6">Recurso generado con IA</p>
+          {/* Stats Row */}
+          <div className="flex flex-wrap gap-6 justify-center text-white/80 text-sm">
+            <div className="flex items-center gap-2">
+              <User size={16} />
+              <span>{resource.author}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Download size={16} />
+              <span>{resource.downloads} descargas</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check size={16} />
+              <span>{validationCount} validaciones</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            {/* Stats Grid */}
-            <div className="bg-slate-50 rounded-xl p-6 mb-6">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-slate-500 mb-1">Autor</p>
-                  <p className="font-semibold text-slate-900">{resource.author}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 mb-1">Modelo de IA</p>
-                  <p className="font-semibold text-slate-900">{resource.aiModel || 'NotebookLM'}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 mb-1">Descargas</p>
-                  <p className="font-semibold text-slate-900 flex items-center gap-1">
-                    <Download size={16} /> {resource.downloads}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-slate-500 mb-1">Validaciones</p>
-                  <div className="flex items-center gap-2">
-                    <Check size={18} className="text-green-600" />
-                    <span className="text-sm font-semibold text-slate-900">
-                      {validationCount} {validationCount === 1 ? 'validación' : 'validaciones'}
-                    </span>
-                  </div>
-                </div>
-              </div>
+      {/* Main Content */}
+      <div className="max-w-5xl mx-auto px-4 -mt-20 relative z-10 pb-16">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12">
+
+          {/* Info Section */}
+          <div className="mb-8">
+            <div className="flex items-center justify-center gap-3 text-sm text-slate-600 mb-6">
+              <span className="px-3 py-1 bg-slate-100 rounded-full">
+                {resource.aiModel || 'NotebookLM'}
+              </span>
+              <span>•</span>
+              <span>Recurso generado con IA</span>
             </div>
 
             {/* Original Source */}
             {resource.originalSource && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <BookOpen className="text-blue-600 mt-0.5 flex-shrink-0" size={20} />
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-blue-900 uppercase mb-1">Fuente Original</p>
-                    {resource.originalSource.length <= 80 ? (
+                    {resource.originalSource.length <= 150 ? (
                       <p className="text-sm text-blue-800 font-medium">
                         {resource.originalSource}
                       </p>
@@ -387,54 +386,142 @@ function ResourcePage() {
                 </div>
               </div>
             )}
+          </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-col gap-3 mb-6">
-              {resource.previewUrls && resource.previewUrls.length > 0 && (
-                <button
-                  onClick={handlePreview}
-                  className="w-full py-3 px-6 bg-slate-100 text-slate-900 rounded-full font-semibold hover:bg-slate-200 transition flex items-center justify-center gap-2"
-                >
-                  <Eye size={20} />
-                  Vista Previa (Primeras 3 páginas)
-                </button>
-              )}
+          {/* Preview Gallery Section */}
+          {resource.previewUrls && resource.previewUrls.length > 0 && (
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">
+                Echa un vistazo al interior:
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {resource.previewUrls.map((pageUrl, index) => (
+                  <div key={index} className="group cursor-pointer" onClick={() => handleOpenLightbox(index)}>
+                    <div className="bg-white p-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 border-4 border-white hover:scale-105 relative">
+                      <img
+                        src={pageUrl}
+                        alt={`Página ${index + 1}`}
+                        className="w-full h-auto rounded-lg shadow-md"
+                      />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all rounded-xl flex items-center justify-center">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded-full p-3">
+                          <Eye size={24} className="text-slate-900" />
+                        </div>
+                      </div>
+                      <p className="text-center text-sm font-semibold text-slate-600 mt-3">
+                        Página {index + 1}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Download Button - Centered & Large */}
+          <div className="mb-8">
+            <button
+              onClick={handleDownload}
+              className="w-full max-w-md mx-auto block py-5 px-8 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl font-bold text-xl hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 hover:scale-105 shadow-2xl flex items-center justify-center gap-3"
+            >
+              <Download size={28} />
+              Descargar PDF Completo
+            </button>
+          </div>
+
+          {/* Validation Section */}
+          <div className="border-t border-slate-200 pt-8">
+            <h3 className="text-lg font-bold text-slate-900 mb-4 text-center">
+              ¿Te resultó útil este recurso?
+            </h3>
+            {user ? (
               <button
-                onClick={handleDownload}
-                className="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition flex items-center justify-center gap-3 shadow-lg"
+                onClick={handleToggleValidation}
+                className={`w-full max-w-sm mx-auto block py-3 px-6 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+                  isValidatedByUser
+                    ? 'bg-green-500 text-white shadow-md hover:bg-green-600'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
               >
-                <Download size={24} />
-                Descargar PDF Completo
+                <Check size={20} className={isValidatedByUser ? 'stroke-2' : ''} />
+                {isValidatedByUser ? 'Validado por ti' : 'Validar utilidad'}
               </button>
-            </div>
-
-            {/* Validation Button */}
-            <div className="mb-4">
-              {user ? (
-                <button
-                  onClick={handleToggleValidation}
-                  className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
-                    isValidatedByUser
-                      ? 'bg-green-500 text-white shadow-md hover:bg-green-600'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <Check size={18} className={isValidatedByUser ? 'stroke-2' : ''} />
-                  {isValidatedByUser ? 'Validado por ti' : 'Validar utilidad'}
-                </button>
-              ) : (
-                <div className="py-2.5 px-4 bg-slate-50 rounded-lg text-center text-sm text-slate-500">
-                  <Check size={18} className="inline mr-2" />
-                  Inicia sesión para validar
-                </div>
-              )}
-              <p className="text-xs text-slate-600 mt-2 text-center">
-                {validationCount} {validationCount === 1 ? 'validación' : 'validaciones'}
-              </p>
-            </div>
+            ) : (
+              <div className="w-full max-w-sm mx-auto py-3 px-6 bg-slate-50 rounded-xl text-center text-sm text-slate-500">
+                <Check size={18} className="inline mr-2" />
+                Inicia sesión para validar
+              </div>
+            )}
+            <p className="text-sm text-slate-600 mt-3 text-center">
+              {validationCount} {validationCount === 1 ? 'persona validó' : 'personas validaron'} este recurso
+            </p>
           </div>
         </div>
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxOpen && resource.previewUrls && (
+        <div
+          className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
+          onClick={() => setLightboxOpen(false)}
+        >
+          {/* Close Button */}
+          <button
+            onClick={() => setLightboxOpen(false)}
+            className="absolute top-6 right-6 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-full transition text-white"
+          >
+            <X size={32} />
+          </button>
+
+          {/* Image Counter */}
+          <div className="absolute top-6 left-6 z-50 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-white font-semibold">
+            {currentImageIndex + 1} / {resource.previewUrls.length}
+          </div>
+
+          {/* Previous Button */}
+          {currentImageIndex > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePrevImage();
+              }}
+              className="absolute left-6 top-1/2 -translate-y-1/2 z-50 p-3 bg-white/10 hover:bg-white/20 rounded-full transition text-white"
+            >
+              <ChevronLeft size={32} />
+            </button>
+          )}
+
+          {/* Next Button */}
+          {currentImageIndex < resource.previewUrls.length - 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNextImage();
+              }}
+              className="absolute right-6 top-1/2 -translate-y-1/2 z-50 p-3 bg-white/10 hover:bg-white/20 rounded-full transition text-white"
+            >
+              <ChevronRight size={32} />
+            </button>
+          )}
+
+          {/* Image */}
+          <div
+            className="w-full h-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={resource.previewUrls[currentImageIndex]}
+              alt={`Página ${currentImageIndex + 1}`}
+              className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            />
+          </div>
+
+          {/* Page Label */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-white/10 backdrop-blur-md rounded-full text-white font-semibold">
+            Página {currentImageIndex + 1}
+          </div>
+        </div>
+      )}
 
       {/* Download Limit Modal */}
       {showLimitModal && (
@@ -519,72 +606,6 @@ function ResourcePage() {
         </div>
       )}
 
-      {/* PDF Preview Modal */}
-      {showPreviewModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowPreviewModal(false)}>
-          <div className="bg-white rounded-2xl max-w-4xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center z-10 rounded-t-2xl">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Vista Previa</h2>
-                <p className="text-sm text-slate-600 mt-1">Primeras 3 páginas del documento</p>
-              </div>
-              <button
-                onClick={() => setShowPreviewModal(false)}
-                className="text-slate-400 hover:text-slate-900 transition"
-              >
-                <X size={28} />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 px-8">
-              {loadingPreview ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                  <p className="text-slate-600">Cargando vista previa...</p>
-                </div>
-              ) : previewPages.length > 0 ? (
-                <div className="space-y-6">
-                  {previewPages.map((pageUrl, index) => (
-                    <div key={index} className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-                      <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
-                        <p className="text-sm font-semibold text-slate-700">Página {index + 1}</p>
-                      </div>
-                      <div className="p-4 bg-white flex justify-center">
-                        <img
-                          src={pageUrl}
-                          alt={`Página ${index + 1}`}
-                          className="max-w-full h-auto rounded shadow-md"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <FileText className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-600">No hay vista previa disponible para este documento.</p>
-                  <p className="text-sm text-slate-500 mt-2">Descarga el PDF completo para ver su contenido.</p>
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="sticky bottom-0 bg-slate-50 border-t border-slate-200 p-6 flex justify-between items-center rounded-b-2xl">
-              <p className="text-sm text-slate-600">
-                Para ver el documento completo, descárgalo usando el botón de descarga.
-              </p>
-              <button
-                onClick={() => setShowPreviewModal(false)}
-                className="px-6 py-2 bg-slate-200 text-slate-700 rounded-full hover:bg-slate-300 transition font-semibold"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
