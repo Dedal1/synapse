@@ -16,6 +16,7 @@ function ResourcePage() {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   const FREE_LIMIT = 5;
 
@@ -256,25 +257,71 @@ function ResourcePage() {
         />
       </Helmet>
 
-      {/* Hero Header Inmersivo */}
-      <div className="relative h-[70vh] min-h-[500px] overflow-hidden">
-        {/* Background Image with Blur */}
+      {/* Hero Header Inmersivo con Grid Reveal */}
+      <div
+        className="relative h-[500px] overflow-hidden"
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+          });
+        }}
+      >
+        {/* Background Image with Blur - Extra Dark */}
         <div className="absolute inset-0">
           {resource.thumbnailUrl ? (
             <>
               <img
                 src={resource.thumbnailUrl}
                 alt={resource.title}
-                className="w-full h-full object-cover blur-xl scale-110"
+                className="w-full h-full object-cover blur-2xl scale-110"
               />
-              <div className="absolute inset-0 bg-black/70"></div>
+              {/* Very dark overlay for maximum contrast */}
+              <div className="absolute inset-0 bg-black/95"></div>
             </>
           ) : (
             <div className={`w-full h-full bg-gradient-to-br ${getGradient(resource.id)}`}>
-              <div className="absolute inset-0 bg-black/50"></div>
+              <div className="absolute inset-0 bg-black/90"></div>
             </div>
           )}
         </div>
+
+        {/* Bright White Grid Pattern with Large Mask Reveal Effect */}
+        <div
+          className="absolute inset-0 z-[1]"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, rgba(255, 255, 255, 0.4) 2px, transparent 2px),
+              linear-gradient(to bottom, rgba(255, 255, 255, 0.4) 2px, transparent 2px)
+            `,
+            backgroundSize: '40px 40px',
+            WebkitMaskImage: `radial-gradient(500px circle at ${mousePos.x}px ${mousePos.y}px, black, transparent)`,
+            maskImage: `radial-gradient(500px circle at ${mousePos.x}px ${mousePos.y}px, black, transparent)`
+          }}
+        ></div>
+
+        {/* Additional intense white glow effect */}
+        <div
+          className="absolute inset-0 z-[2] pointer-events-none"
+          style={{
+            background: `radial-gradient(450px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255, 255, 255, 0.15), transparent 65%)`
+          }}
+        ></div>
+
+        {/* Secondary grid layer for depth (cyan accent) */}
+        <div
+          className="absolute inset-0 z-[3]"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, rgba(34, 211, 238, 0.25) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(34, 211, 238, 0.25) 1px, transparent 1px)
+            `,
+            backgroundSize: '80px 80px',
+            WebkitMaskImage: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, black, transparent)`,
+            maskImage: `radial-gradient(400px circle at ${mousePos.x}px ${mousePos.y}px, black, transparent)`
+          }}
+        ></div>
 
         {/* Back Button - Floating */}
         <button
@@ -294,7 +341,7 @@ function ResourcePage() {
         </div>
 
         {/* Hero Content */}
-        <div className="relative z-10 h-full flex flex-col items-center justify-center px-4 text-center">
+        <div className="relative z-[15] h-full flex flex-col items-center justify-center px-4 text-center">
           <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-6 leading-tight max-w-4xl drop-shadow-2xl">
             {resource.title}
           </h1>
@@ -331,17 +378,17 @@ function ResourcePage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-4 -mt-20 relative z-10 pb-16">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12">
+      <div className="max-w-5xl mx-auto px-4 mt-8 md:-mt-20 relative z-20 pb-16">
+        <div className="bg-white rounded-3xl shadow-2xl p-6 pt-8 md:p-12">
 
           {/* Info Section */}
           <div className="mb-8">
-            <div className="flex items-center justify-center gap-3 text-sm text-slate-600 mb-6">
-              <span className="px-3 py-1 bg-slate-100 rounded-full">
+            <div className="flex items-center justify-center gap-3 text-sm text-slate-600 mb-6 flex-wrap px-2">
+              <span className="px-3 py-1 bg-slate-100 rounded-full whitespace-nowrap">
                 {resource.aiModel || 'NotebookLM'}
               </span>
-              <span>•</span>
-              <span>Recurso generado con IA</span>
+              <span className="hidden sm:inline">•</span>
+              <span className="text-center">Recurso generado con IA</span>
             </div>
 
             {/* Original Source */}
