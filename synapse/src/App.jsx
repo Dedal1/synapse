@@ -1200,6 +1200,289 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full relative max-h-[90vh] overflow-y-auto">
+            <div className="p-8 pb-10">
+              <button
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setAcceptedTerms(false);
+                  setResourceDescription('');
+                  setSelectedFile(null);
+                  setSelectedAiModel('');
+                  setSelectedCategory('');
+                  setOriginalSource('');
+                  setThumbnailBlob(null);
+                  setThumbnailPreview(null);
+                }}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 z-10"
+              >
+                <X size={24} />
+              </button>
+              <h2 className="text-2xl font-bold mb-6">Publicar Recurso</h2>
+
+            {/* File Selection Area */}
+            {!selectedFile ? (
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all mb-4 ${
+                  isDragging
+                    ? 'border-indigo-500 bg-indigo-50 border-solid'
+                    : 'border-slate-300 bg-transparent'
+                }`}
+              >
+                <Upload
+                  className={`mx-auto mb-4 transition-colors ${
+                    isDragging ? 'text-indigo-700' : 'text-indigo-600'
+                  }`}
+                  size={48}
+                />
+                <p className="text-slate-600 mb-2 font-medium">
+                  {isDragging ? '¡Suelta el archivo aquí!' : 'Arrastra un PDF aquí'}
+                </p>
+                <p className="text-slate-400 text-sm mb-4">o</p>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileInput}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-full cursor-pointer hover:bg-indigo-700 transition"
+                >
+                  Seleccionar archivo
+                </label>
+              </div>
+            ) : (
+              <div className="mb-4">
+                {/* Thumbnail Preview */}
+                {generatingThumbnail && (
+                  <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
+                    <p className="text-sm text-blue-700 font-medium">Generando vistas previas (3 páginas)...</p>
+                  </div>
+                )}
+
+                {thumbnailPreview && (
+                  <div className="mb-3 rounded-xl overflow-hidden border-2 border-indigo-200">
+                    <img
+                      src={thumbnailPreview}
+                      alt="Vista previa"
+                      className="w-full h-48 object-cover"
+                    />
+                  </div>
+                )}
+
+                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <FileText className="text-indigo-600" size={40} />
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-900">{selectedFile.name}</p>
+                      <p className="text-sm text-slate-600">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setThumbnailBlob(null);
+                        setThumbnailPreview(null);
+                      }}
+                      className="p-2 text-slate-500 hover:text-red-600 transition"
+                      title="Cambiar archivo"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Description Field - Now Required */}
+            <div className="mb-4">
+              <label htmlFor="description" className="block text-sm font-semibold text-slate-700 mb-2">
+                Descripción <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="description"
+                value={resourceDescription}
+                onChange={(e) => setResourceDescription(e.target.value)}
+                maxLength={300}
+                rows={3}
+                placeholder="Describe brevemente este recurso para ayudar a otros a entender su valor... (mínimo 10 caracteres)"
+                className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none ${
+                  resourceDescription.length > 0 && resourceDescription.length < 10
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-slate-300'
+                }`}
+              />
+              <div className="flex justify-between items-center mt-1">
+                <p className={`text-xs ${
+                  resourceDescription.length > 0 && resourceDescription.length < 10
+                    ? 'text-red-500'
+                    : 'text-slate-500'
+                }`}>
+                  {resourceDescription.length < 10 && resourceDescription.length > 0
+                    ? `Faltan ${10 - resourceDescription.length} caracteres`
+                    : resourceDescription.length >= 10
+                    ? '✓ Descripción válida'
+                    : 'Mínimo 10 caracteres'
+                  }
+                </p>
+                <p className="text-xs text-slate-500">
+                  {resourceDescription.length}/300
+                </p>
+              </div>
+            </div>
+
+            {/* Grid 2 columns: Category and AI Model */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {/* Category Selector */}
+              <div>
+                <label htmlFor="category" className="block text-sm font-semibold text-slate-700 mb-2">
+                  Categoría <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="category"
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                    !selectedCategory
+                      ? 'border-slate-300 text-slate-500'
+                      : 'border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <option value="" disabled>Selecciona</option>
+                  {categories.map((cat) => (
+                    <option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* AI Model Selector */}
+              <div>
+                <label htmlFor="ai-model" className="block text-sm font-semibold text-slate-700 mb-2">
+                  Generado por <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="ai-model"
+                  value={selectedAiModel}
+                  onChange={(e) => setSelectedAiModel(e.target.value)}
+                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                    !selectedAiModel
+                      ? 'border-slate-300 text-slate-500'
+                      : 'border-slate-300 text-slate-900'
+                  }`}
+                >
+                  <option value="" disabled>Selecciona</option>
+                  {aiModels.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Original Source Input */}
+            <div className="mb-4">
+              <label htmlFor="original-source" className="block text-sm font-semibold text-slate-700 mb-2">
+                Fuente Original <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="original-source"
+                type="text"
+                value={originalSource}
+                onChange={(e) => setOriginalSource(e.target.value)}
+                maxLength={SOURCE_MAX_LENGTH}
+                placeholder="Ej: Manual DGT 2025, Libro de Marketing de Kotler, BOE..."
+                className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                  !originalSource
+                    ? 'border-slate-300'
+                    : 'border-slate-300'
+                }`}
+              />
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-xs text-slate-500">
+                  Indica en qué se basa este contenido para garantizar su veracidad.
+                </p>
+                <p className={`text-xs font-semibold ${
+                  originalSource.length > SOURCE_MAX_LENGTH * 0.9
+                    ? 'text-amber-600'
+                    : originalSource.length > SOURCE_MAX_LENGTH * 0.7
+                      ? 'text-blue-600'
+                      : 'text-slate-400'
+                }`}>
+                  {originalSource.length}/{SOURCE_MAX_LENGTH}
+                </p>
+              </div>
+            </div>
+
+            {/* Legal Checkbox */}
+            <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl mb-6">
+              <input
+                type="checkbox"
+                id="terms-checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                className="mt-1 w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+              />
+              <label htmlFor="terms-checkbox" className="text-xs text-slate-600 leading-relaxed cursor-pointer">
+                Certifico que tengo los derechos para compartir este documento y que es un contenido original o de libre distribución. Acepto que Synapse es una plataforma comunitaria y no propietaria del contenido.
+              </label>
+            </div>
+
+            {/* Publish Button */}
+            <button
+              onClick={handlePublishResource}
+              disabled={!selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || !selectedCategory || !originalSource.trim() || uploading}
+              className={`w-full py-4 rounded-xl font-bold text-lg transition flex items-center justify-center gap-3 ${
+                !selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || !selectedCategory || !originalSource.trim() || uploading
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg hover:shadow-xl'
+              }`}
+            >
+              {uploading ? (
+                <>
+                  <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  Subiendo vistas previas...
+                </>
+              ) : (
+                <>
+                  <Upload size={24} />
+                  Publicar Recurso
+                </>
+              )}
+            </button>
+
+            {/* Validation Message */}
+            {(!selectedFile || resourceDescription.length < 10 || !acceptedTerms || !selectedAiModel || !selectedCategory || !originalSource.trim()) && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-800 font-medium">
+                  Para publicar necesitas:
+                </p>
+                <ul className="text-xs text-amber-700 mt-2 space-y-1 ml-4">
+                  {!selectedFile && <li>• Seleccionar un archivo PDF</li>}
+                  {resourceDescription.length < 10 && <li>• Escribir una descripción (mín. 10 caracteres)</li>}
+                  {!selectedCategory && <li>• Seleccionar una categoría</li>}
+                  {!selectedAiModel && <li>• Seleccionar quién generó el contenido</li>}
+                  {!originalSource.trim() && <li>• Indicar la fuente original</li>}
+                  {!acceptedTerms && <li>• Aceptar los términos legales</li>}
+                </ul>
+              </div>
+            )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
