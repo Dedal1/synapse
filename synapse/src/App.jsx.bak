@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings, Flag } from 'lucide-react';
+import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings } from 'lucide-react';
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -539,28 +539,42 @@ export default function App() {
     }
   };
 
-  const handleToggleValidation = async (resourceId) => {
+  const handleToggleValidation = async (e, resourceId) => {
+    if (e) e.stopPropagation(); // Evitar que se abra el modal si viene de la card
+
     if (!user) {
       alert('Debes iniciar sesión para validar recursos');
       return;
     }
 
-    // Update local state visually only
-    setResources(prev => prev.map(r => {
-      if (r.id === resourceId) {
-        const validatedBy = r.validatedBy || [];
-        const hasValidated = validatedBy.includes(user.uid);
-        const newValidatedBy = hasValidated
-          ? validatedBy.filter(uid => uid !== user.uid)
-          : [...validatedBy, user.uid];
+    try {
+      const resource = resources.find(r => r.id === resourceId);
+      const validatedBy = resource?.validatedBy || [];
+      const hasValidated = validatedBy.includes(user.uid);
 
-        return {
-          ...r,
-          validatedBy: newValidatedBy
-        };
+      if (hasValidated) {
+        // Remove validation
+        await removeValidation(resourceId, user.uid);
+      } else {
+        // Add validation
+        await addValidation(resourceId, user.uid);
       }
-      return r;
-    }));
+
+      // Reload resources
+      await loadResources();
+
+      // Update selected resource if modal is open
+      if (selectedResource && selectedResource.id === resourceId) {
+        const updatedResources = await getPDFs();
+        const updatedResource = updatedResources.find(r => r.id === resourceId);
+        if (updatedResource) {
+          setSelectedResource(updatedResource);
+        }
+      }
+    } catch (error) {
+      console.error("Error toggling validation:", error);
+      alert('Error al actualizar la validación');
+    }
   };
 
   const hasUserValidated = (resource) => {
@@ -609,31 +623,29 @@ export default function App() {
     }
   };
 
-  const filteredResources = useMemo(() => {
-    return resources
-      .filter(r => {
-        // Filtro de búsqueda
-        const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             r.author.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredResources = resources
+    .filter(r => {
+      // Filtro de búsqueda
+      const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           r.author.toLowerCase().includes(searchTerm.toLowerCase());
 
-        // Filtro de categoría
-        const matchesCategory = filterCategory === 'Todas' || r.category === filterCategory;
+      // Filtro de categoría
+      const matchesCategory = filterCategory === 'Todas' || r.category === filterCategory;
 
-        // Filtro de favoritos
-        if (showOnlyFavorites) {
-          return matchesSearch && matchesCategory && userFavorites.includes(r.id);
-        }
+      // Filtro de favoritos
+      if (showOnlyFavorites) {
+        return matchesSearch && matchesCategory && userFavorites.includes(r.id);
+      }
 
-        return matchesSearch && matchesCategory;
-      })
-      .sort((a, b) => {
-        // Ordenar por número de validaciones (mayor a menor), luego por fecha
-        const validationDiff = (b.validatedBy?.length || 0) - (a.validatedBy?.length || 0);
-        if (validationDiff !== 0) return validationDiff;
-        // Si tienen las mismas validaciones, mostrar los más recientes primero
-        return (b.uploadedAt?.seconds || 0) - (a.uploadedAt?.seconds || 0);
-      });
-  }, [resources, searchTerm, filterCategory, showOnlyFavorites, userFavorites]);
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      // Ordenar por número de validaciones (mayor a menor), luego por fecha
+      const validationDiff = (b.validatedBy?.length || 0) - (a.validatedBy?.length || 0);
+      if (validationDiff !== 0) return validationDiff;
+      // Si tienen las mismas validaciones, mostrar los más recientes primero
+      return (b.uploadedAt?.seconds || 0) - (a.uploadedAt?.seconds || 0);
+    });
 
   if (loading) {
     return (
@@ -907,37 +919,20 @@ export default function App() {
                   )}
 
                   {/* Top-right badges/buttons */}
-                  <div className="absolute top-3 right-3 flex gap-2 z-10">
-                    {/* Preview button (Eye overlay) */}
-                    {resource.previewUrls && resource.previewUrls.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          loadPdfPreview(resource);
-                        }}
-                        className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition shadow-sm group"
-                        title="Vista rápida"
-                      >
-                        <Eye size={18} className="text-white" />
-                      </button>
-                    )}
-
-                    {!user && (
-                      <div className="bg-white/95 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-semibold shadow-sm">
-                        Login requerido
-                      </div>
-                    )}
-                    {user && user.uid === resource.userId && (
-                      <button
-                        onClick={(e) => handleDeleteResource(e, resource)}
-                        className="p-2 bg-white/95 text-red-600 rounded-full hover:bg-red-50 transition shadow-sm"
-                        title="Eliminar recurso"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
+                  {!user && (
+                    <div className="absolute top-3 right-3 bg-white/95 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-semibold shadow-sm">
+                      Login requerido
+                    </div>
+                  )}
+                  {user && user.uid === resource.userId && (
+                    <button
+                      onClick={(e) => handleDeleteResource(e, resource)}
+                      className="absolute top-3 right-3 p-2 bg-white/95 text-red-600 rounded-full hover:bg-red-50 transition shadow-sm"
+                      title="Eliminar recurso"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Card Content */}
@@ -968,11 +963,7 @@ export default function App() {
                   <div className="mb-4">
                     {user ? (
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          handleToggleValidation(resource.id);
-                        }}
+                        onClick={(e) => handleToggleValidation(e, resource.id)}
                         className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                           isValidatedByUser
                             ? 'bg-green-500 text-white shadow-md hover:bg-green-600'
@@ -994,26 +985,14 @@ export default function App() {
                   </div>
 
                   {/* Footer Info */}
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-slate-600 font-medium truncate">
-                        {resource.author}
-                      </span>
-                      <div className="flex gap-1.5 items-center text-slate-500">
-                        <Download size={16} />
-                        <span className="text-sm font-semibold">{resource.downloads}</span>
-                      </div>
+                  <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                    <span className="text-sm text-slate-600 font-medium truncate">
+                      {resource.author}
+                    </span>
+                    <div className="flex gap-1.5 items-center text-slate-500">
+                      <Download size={16} />
+                      <span className="text-sm font-semibold">{resource.downloads}</span>
                     </div>
-                    {/* Copyright Report Link */}
-                    <a
-                      href={`mailto:soporte@synapse.app?subject=Reporte%20Copyright%20-%20ID%3A%20${resource.id}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20posible%20infracción%20de%20copyright%3A%0A%0AID%20del%20Recurso%3A%20${resource.id}%0ATítulo%3A%20${encodeURIComponent(resource.title)}%0AAutor%3A%20${encodeURIComponent(resource.author)}%0A%0AMotivo%20del%20reporte%3A%0A%0A%0A%0AFirma%3A%0A`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600 transition-colors mt-1"
-                      title="Reportar infracción de copyright"
-                    >
-                      <Flag size={12} />
-                      <span>Reportar</span>
-                    </a>
                   </div>
                 </div>
               </div>
@@ -1022,185 +1001,213 @@ export default function App() {
         )}
       </main>
 
+      {/* Resource Detail Modal - REMOVED: Now using dedicated ResourcePage.jsx
+      {selectedResource && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => {
+          setSelectedResource(null);
+          setExpandedSource(false);
+        }}>
+          {/* SEO - Dynamic Meta Tags for Resource */}
+          <Helmet>
+            <title>{selectedResource.title} | Synapse</title>
+            <meta
+              name="description"
+              content={selectedResource.description
+                ? (selectedResource.description.length > 160
+                    ? selectedResource.description.substring(0, 160) + '...'
+                    : selectedResource.description)
+                : `Descarga ${selectedResource.title} - Resumen de IA verificado por la comunidad en Synapse.`
+              }
+            />
+          </Helmet>
 
-      {/* PDF Preview Modal */}
-      {showPreviewModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowPreviewModal(false)}>
-          <div className="bg-white rounded-2xl max-w-4xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center z-10 rounded-t-2xl">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Vista Previa</h2>
-                <p className="text-sm text-slate-600 mt-1">Primeras 3 páginas del documento</p>
-              </div>
-              <button
-                onClick={() => setShowPreviewModal(false)}
-                className="text-slate-400 hover:text-slate-900 transition"
-              >
-                <X size={28} />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 px-8">
-              {loadingPreview ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                  <p className="text-slate-600">Cargando vista previa...</p>
-                </div>
-              ) : previewPages.length === 0 ? (
-                /* Fallback error state */
-                <div className="text-center py-12">
-                  <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-100 rounded-full mb-4 mx-auto">
-                    <FileText className="text-amber-600" size={40} />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">
-                    Vista previa no disponible
-                  </h3>
-                  <p className="text-slate-600 mb-6 max-w-md mx-auto">
-                    No pudimos generar la vista previa para este documento. Puedes descargarlo directamente para ver su contenido completo.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setShowPreviewModal(false);
-                      handleDownloadFromModal();
-                    }}
-                    className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2"
-                  >
-                    <Download size={20} />
-                    Descargar Documento
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-6 pb-4">
-                  {previewPages.map((pageUrl, index) => (
-                    <div key={index} className="border-2 border-slate-200 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow">
-                      <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
-                        <p className="text-sm font-semibold text-slate-700">Página {index + 1}</p>
-                      </div>
-                      <img
-                        src={pageUrl}
-                        alt={`Página ${index + 1}`}
-                        className="w-full rounded-b-xl"
-                      />
-                    </div>
-                  ))}
-
-                  {/* CTA to download */}
-                  <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6 text-center shadow-md">
-                    <p className="text-indigo-900 font-semibold mb-4">
-                      ¿Te gusta lo que ves? Descarga el documento completo
-                    </p>
-                    <button
-                      onClick={() => {
-                        setShowPreviewModal(false);
-                        // El modal de recurso sigue abierto, solo ejecutar download
-                        handleDownloadFromModal();
-                      }}
-                      className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2"
-                    >
-                      <Download size={20} />
-                      Descargar Completo
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Limit Reached Modal */}
-      {showLimitModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowLimitModal(false)}>
-          <div className="bg-white rounded-2xl max-w-md w-full relative shadow-2xl p-8" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Sticky Close Button */}
             <button
-              onClick={() => setShowLimitModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 transition"
+              onClick={() => {
+                setSelectedResource(null);
+                setExpandedSource(false);
+              }}
+              className="sticky top-4 right-4 ml-auto mr-4 mt-4 text-white hover:text-slate-200 transition z-10 bg-black/20 rounded-full p-2 float-right"
             >
               <X size={24} />
             </button>
 
-            {/* Icon */}
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4">
-                <Zap className="text-amber-600" size={32} />
+            {/* Header - Thumbnail or Gradient with Icon */}
+            <div className={`w-full relative flex items-center justify-center overflow-hidden rounded-t-2xl ${
+              selectedResource.thumbnailUrl ? 'h-64' : `h-48 bg-gradient-to-br ${getGradient(selectedResource.id)}`
+            }`}>
+              {selectedResource.thumbnailUrl ? (
+                <img
+                  src={selectedResource.thumbnailUrl}
+                  alt={selectedResource.title}
+                  className="w-full h-full object-cover block"
+                  style={{ objectPosition: 'center top' }}
+                />
+              ) : selectedResource.avatarUrl ? (
+                <img
+                  src={selectedResource.avatarUrl}
+                  alt={selectedResource.title}
+                  className="w-32 h-32 drop-shadow-2xl"
+                />
+              ) : (
+                <FileText className="h-24 w-24 text-white drop-shadow-2xl" />
+              )}
+            </div>
+
+            {/* Content */}
+            <div className="p-8 pb-12">
+              {/* Título y detalles */}
+              <h2 className="text-4xl font-extrabold mb-2 text-center text-slate-900 leading-tight whitespace-normal break-words">{selectedResource.title}</h2>
+
+              {/* Description (full text) */}
+              {selectedResource.description && (
+                <p className="text-base text-slate-700 text-center mb-4 leading-relaxed max-w-xl mx-auto">
+                  {selectedResource.description}
+                </p>
+              )}
+
+              {/* Category Badge */}
+              {selectedResource.category && (
+                <div className="text-center mb-4">
+                  <span className={`inline-block px-4 py-2 text-sm font-semibold rounded-full ${getCategoryColor(selectedResource.category)}`}>
+                    {selectedResource.category}
+                  </span>
+                </div>
+              )}
+
+              <p className="text-center text-slate-500 mb-6">Recurso generado con IA</p>
+
+              <div className="bg-slate-50 rounded-xl p-6 mb-6">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-slate-500 mb-1">Autor</p>
+                    <p className="font-semibold text-slate-900">{selectedResource.author}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-1">Modelo de IA</p>
+                    <p className="font-semibold text-slate-900">{selectedResource.aiModel || 'NotebookLM'}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-1">Descargas</p>
+                    <p className="font-semibold text-slate-900 flex items-center gap-1">
+                      <Download size={16} /> {selectedResource.downloads}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-1">Validaciones</p>
+                    <div className="flex items-center gap-2">
+                      <Check size={18} className="text-green-600" />
+                      <span className="text-sm font-semibold text-slate-900">
+                        {selectedResource.validatedBy?.length || 0} {(selectedResource.validatedBy?.length || 0) === 1 ? 'validación' : 'validaciones'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">
-                Límite Gratuito Alcanzado
-              </h2>
-              <p className="text-slate-600">
-                Has usado tus <span className="font-bold">{FREE_LIMIT} descargas gratuitas</span> de este mes.
-              </p>
+
+              {/* Original Source - Critical for Trust */}
+              {selectedResource.originalSource && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <div className="flex items-start gap-3">
+                    <BookOpen className="text-blue-600 mt-0.5 flex-shrink-0" size={20} />
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-blue-900 uppercase mb-1">Fuente Original</p>
+                      {selectedResource.originalSource.length <= 80 ? (
+                        // Short source: display normally
+                        <p className="text-sm text-blue-800 font-medium">
+                          {selectedResource.originalSource}
+                        </p>
+                      ) : (
+                        // Long source: implement "Read more/less"
+                        <>
+                          <p className={`text-sm text-blue-800 font-medium ${expandedSource ? '' : 'line-clamp-2'}`}>
+                            {selectedResource.originalSource}
+                          </p>
+                          <button
+                            onClick={() => setExpandedSource(!expandedSource)}
+                            className="text-xs text-blue-600 hover:text-blue-800 font-semibold mt-1 flex items-center gap-1 transition"
+                          >
+                            {expandedSource ? (
+                              <>
+                                Ver menos
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                              </>
+                            ) : (
+                              <>
+                                Ver todo
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </>
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons - MOVED UP for better conversion */}
+              <div className="flex flex-col gap-3 mb-6">
+                {/* Preview button */}
+                <button
+                  onClick={() => loadPdfPreview(selectedResource)}
+                  className="w-full py-4 bg-white text-indigo-600 rounded-full font-bold text-lg hover:bg-indigo-50 transition flex items-center justify-center gap-3 border-2 border-indigo-600"
+                >
+                  <Eye size={24} />
+                  Vista Previa (Primeras 3 páginas)
+                </button>
+
+                {/* Download button */}
+                <button
+                  onClick={handleDownloadFromModal}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-full font-bold text-lg hover:bg-indigo-700 transition flex items-center justify-center gap-3"
+                >
+                  <Download size={24} />
+                  {user ? 'Descargar Recurso Completo' : 'Inicia sesión para descargar'}
+                </button>
+
+                {!user && (
+                  <p className="text-center text-sm text-slate-500">
+                    Necesitas estar registrado para descargar
+                  </p>
+                )}
+              </div>
+
+              {/* Validation Section */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 mb-6 border border-green-200">
+                <h3 className="font-bold text-lg text-slate-900 mb-3">
+                  ¿Este recurso te ha sido útil?
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  Valida la utilidad de este contenido para ayudar a otros usuarios de la comunidad a identificar recursos verificados.
+                </p>
+
+                {user ? (
+                  <button
+                    onClick={() => handleToggleValidation(null, selectedResource.id)}
+                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-200 flex items-center justify-center gap-3 shadow-md ${
+                      hasUserValidated(selectedResource)
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-white text-slate-700 border-2 border-green-300 hover:bg-green-50 hover:border-green-400'
+                    }`}
+                  >
+                    <Check size={24} className={hasUserValidated(selectedResource) ? 'stroke-[3]' : ''} />
+                    {hasUserValidated(selectedResource) ? '✓ Validado por ti' : 'Validar utilidad'}
+                  </button>
+                ) : (
+                  <div className="bg-slate-100 rounded-xl p-4 text-center">
+                    <p className="text-sm text-slate-600">
+                      Inicia sesión para validar este recurso
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-
-            {/* Benefits list */}
-            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 mb-6 border border-indigo-200">
-              <p className="font-bold text-indigo-900 mb-3">Actualiza a PRO y obtén:</p>
-              <ul className="space-y-2 text-sm text-indigo-800">
-                <li className="flex items-start gap-2">
-                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Descargas ilimitadas</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Acceso prioritario a nuevos recursos</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Sin publicidad</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Soporte prioritario</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* CTA */}
-            <button
-              onClick={() => {
-                setShowLimitModal(false);
-                handleUpgradeToPro();
-              }}
-              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition flex items-center justify-center gap-3"
-            >
-              <Zap size={24} />
-              Actualizar a PRO
-            </button>
-
-            <p className="text-center text-xs text-slate-500 mt-4">
-              Tu límite se reiniciará el próximo mes
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Floating "Back to Top" Button */}
-      {showScrollTop && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-8 right-8 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 z-50 hover:scale-110"
-          aria-label="Volver arriba"
-        >
-          <ArrowUp size={24} />
-        </button>
-      )}
-
-      {/* Cookie Banner */}
-      {showCookieBanner && (
-        <div className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-4 shadow-2xl z-50 border-t border-slate-700">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
-            <p className="text-sm flex-1 min-w-[250px]">
-              Usamos cookies propias y de terceros para gestionar la sesión y los pagos seguros. Al seguir navegando, aceptas su uso.
-            </p>
-            <button
-              onClick={handleCloseCookieBanner}
-              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-800 transition-colors"
-              aria-label="Cerrar banner de cookies"
-            >
-              <X size={20} />
-            </button>
           </div>
         </div>
       )}
@@ -1484,6 +1491,188 @@ export default function App() {
               </div>
             )}
             </div>
+          </div>
+        </div>
+      )} */}
+
+      {/* PDF Preview Modal */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowPreviewModal(false)}>
+          <div className="bg-white rounded-2xl max-w-4xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center z-10 rounded-t-2xl">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Vista Previa</h2>
+                <p className="text-sm text-slate-600 mt-1">Primeras 3 páginas del documento</p>
+              </div>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="text-slate-400 hover:text-slate-900 transition"
+              >
+                <X size={28} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 px-8">
+              {loadingPreview ? (
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+                  <p className="text-slate-600">Cargando vista previa...</p>
+                </div>
+              ) : previewPages.length === 0 ? (
+                /* Fallback error state */
+                <div className="text-center py-12">
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-100 rounded-full mb-4 mx-auto">
+                    <FileText className="text-amber-600" size={40} />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">
+                    Vista previa no disponible
+                  </h3>
+                  <p className="text-slate-600 mb-6 max-w-md mx-auto">
+                    No pudimos generar la vista previa para este documento. Puedes descargarlo directamente para ver su contenido completo.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowPreviewModal(false);
+                      handleDownloadFromModal();
+                    }}
+                    className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2"
+                  >
+                    <Download size={20} />
+                    Descargar Documento
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6 pb-4">
+                  {previewPages.map((pageUrl, index) => (
+                    <div key={index} className="border-2 border-slate-200 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+                      <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
+                        <p className="text-sm font-semibold text-slate-700">Página {index + 1}</p>
+                      </div>
+                      <img
+                        src={pageUrl}
+                        alt={`Página ${index + 1}`}
+                        className="w-full rounded-b-xl"
+                      />
+                    </div>
+                  ))}
+
+                  {/* CTA to download */}
+                  <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6 text-center shadow-md">
+                    <p className="text-indigo-900 font-semibold mb-4">
+                      ¿Te gusta lo que ves? Descarga el documento completo
+                    </p>
+                    <button
+                      onClick={() => {
+                        setShowPreviewModal(false);
+                        // El modal de recurso sigue abierto, solo ejecutar download
+                        handleDownloadFromModal();
+                      }}
+                      className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2"
+                    >
+                      <Download size={20} />
+                      Descargar Completo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Limit Reached Modal */}
+      {showLimitModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowLimitModal(false)}>
+          <div className="bg-white rounded-2xl max-w-md w-full relative shadow-2xl p-8" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowLimitModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 transition"
+            >
+              <X size={24} />
+            </button>
+
+            {/* Icon */}
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4">
+                <Zap className="text-amber-600" size={32} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                Límite Gratuito Alcanzado
+              </h2>
+              <p className="text-slate-600">
+                Has usado tus <span className="font-bold">{FREE_LIMIT} descargas gratuitas</span> de este mes.
+              </p>
+            </div>
+
+            {/* Benefits list */}
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 mb-6 border border-indigo-200">
+              <p className="font-bold text-indigo-900 mb-3">Actualiza a PRO y obtén:</p>
+              <ul className="space-y-2 text-sm text-indigo-800">
+                <li className="flex items-start gap-2">
+                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Descargas ilimitadas</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Acceso prioritario a nuevos recursos</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Sin publicidad</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
+                  <span>Soporte prioritario</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* CTA */}
+            <button
+              onClick={() => {
+                setShowLimitModal(false);
+                handleUpgradeToPro();
+              }}
+              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition flex items-center justify-center gap-3"
+            >
+              <Zap size={24} />
+              Actualizar a PRO
+            </button>
+
+            <p className="text-center text-xs text-slate-500 mt-4">
+              Tu límite se reiniciará el próximo mes
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating "Back to Top" Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 z-50 hover:scale-110"
+          aria-label="Volver arriba"
+        >
+          <ArrowUp size={24} />
+        </button>
+      )}
+
+      {/* Cookie Banner */}
+      {showCookieBanner && (
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-4 shadow-2xl z-50 border-t border-slate-700">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+            <p className="text-sm flex-1 min-w-[250px]">
+              Usamos cookies propias y de terceros para gestionar la sesión y los pagos seguros. Al seguir navegando, aceptas su uso.
+            </p>
+            <button
+              onClick={handleCloseCookieBanner}
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-800 transition-colors"
+              aria-label="Cerrar banner de cookies"
+            >
+              <X size={20} />
+            </button>
           </div>
         </div>
       )}
