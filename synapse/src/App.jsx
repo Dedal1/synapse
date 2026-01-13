@@ -215,7 +215,31 @@ export default function App() {
   const loadResources = async () => {
     try {
       const pdfs = await getPDFs();
-      setResources(pdfs);
+
+      // 🔒 SAFETY: Ensure ALL resources have unique IDs
+      const sanitizedResources = pdfs.map((resource, index) => {
+        if (!resource.id) {
+          console.warn(`⚠️ Resource without ID found at index ${index}:`, resource.title);
+          // Generate a unique ID if missing
+          return {
+            ...resource,
+            id: `temp-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`
+          };
+        }
+        return resource;
+      });
+
+      // 🔍 DEBUG: Log IDs to verify uniqueness
+      console.log('📋 Loaded resources with IDs:', sanitizedResources.map(r => ({ id: r.id, title: r.title })));
+
+      // Check for duplicate IDs
+      const ids = sanitizedResources.map(r => r.id);
+      const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+      if (duplicates.length > 0) {
+        console.error('❌ DUPLICATE IDs DETECTED:', duplicates);
+      }
+
+      setResources(sanitizedResources);
     } catch (error) {
       console.error("Error loading resources:", error);
     }
