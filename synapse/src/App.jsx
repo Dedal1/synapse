@@ -544,11 +544,19 @@ export default function App() {
       return; // Silent fail - no alert to avoid annoying popups
     }
 
+    // Find resource and calculate validation state BEFORE any updates
+    const resource = resources.find(r => r.id === resourceId);
+    if (!resource) {
+      console.error("Resource not found for validation:", resourceId);
+      return;
+    }
+
+    const validatedBy = resource.validatedBy || [];
+    const hasValidated = validatedBy.includes(user.uid);
+
     // 1. Optimistic UI update (instant feedback)
     setResources(prev => prev.map(r => {
       if (r.id === resourceId) {
-        const validatedBy = r.validatedBy || [];
-        const hasValidated = validatedBy.includes(user.uid);
         const newValidatedBy = hasValidated
           ? validatedBy.filter(uid => uid !== user.uid)
           : [...validatedBy, user.uid];
@@ -561,17 +569,8 @@ export default function App() {
       return r;
     }));
 
-    // 2. Silent background update to Firebase (if it fails, we don't show alerts)
+    // 2. Silent background update to Firebase (uses the SAME hasValidated value)
     try {
-      const resource = resources.find(r => r.id === resourceId);
-      if (!resource) {
-        console.error("Resource not found for validation:", resourceId);
-        return;
-      }
-
-      const validatedBy = resource.validatedBy || [];
-      const hasValidated = validatedBy.includes(user.uid);
-
       if (hasValidated) {
         await removeValidation(resourceId, user.uid);
       } else {
