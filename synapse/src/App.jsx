@@ -541,11 +541,10 @@ export default function App() {
 
   const handleToggleValidation = async (resourceId) => {
     if (!user) {
-      alert('Debes iniciar sesión para validar recursos');
-      return;
+      return; // Silent fail - no alert to avoid annoying popups
     }
 
-    // Update local state visually only
+    // 1. Optimistic UI update (instant feedback)
     setResources(prev => prev.map(r => {
       if (r.id === resourceId) {
         const validatedBy = r.validatedBy || [];
@@ -561,6 +560,27 @@ export default function App() {
       }
       return r;
     }));
+
+    // 2. Silent background update to Firebase (if it fails, we don't show alerts)
+    try {
+      const resource = resources.find(r => r.id === resourceId);
+      if (!resource) {
+        console.error("Resource not found for validation:", resourceId);
+        return;
+      }
+
+      const validatedBy = resource.validatedBy || [];
+      const hasValidated = validatedBy.includes(user.uid);
+
+      if (hasValidated) {
+        await removeValidation(resourceId, user.uid);
+      } else {
+        await addValidation(resourceId, user.uid);
+      }
+    } catch (error) {
+      console.error("Error updating validation in background:", error);
+      // Optional: Revert UI if critical, but for now we leave it as-is
+    }
   };
 
   const hasUserValidated = (resource) => {
