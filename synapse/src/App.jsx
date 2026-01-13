@@ -549,31 +549,50 @@ export default function App() {
 
     try {
       const resource = resources.find(r => r.id === resourceId);
-      const validatedBy = resource?.validatedBy || [];
-      const hasValidated = validatedBy.includes(user.uid);
-
-      if (hasValidated) {
-        // Remove validation
-        await removeValidation(resourceId, user.uid);
-      } else {
-        // Add validation
-        await addValidation(resourceId, user.uid);
+      if (!resource) {
+        console.error("Resource not found:", resourceId);
+        return;
       }
 
-      // Reload resources
-      await loadResources();
+      const validatedBy = resource.validatedBy || [];
+      const hasValidated = validatedBy.includes(user.uid);
+
+      // Update local state immediately for instant UI feedback
+      const updatedResources = resources.map(r => {
+        if (r.id === resourceId) {
+          return {
+            ...r,
+            validatedBy: hasValidated
+              ? validatedBy.filter(uid => uid !== user.uid)
+              : [...validatedBy, user.uid]
+          };
+        }
+        return r;
+      });
+      setResources(updatedResources);
 
       // Update selected resource if modal is open
       if (selectedResource && selectedResource.id === resourceId) {
-        const updatedResources = await getPDFs();
         const updatedResource = updatedResources.find(r => r.id === resourceId);
         if (updatedResource) {
           setSelectedResource(updatedResource);
         }
       }
+
+      // Update Firebase in background
+      if (hasValidated) {
+        await removeValidation(resourceId, user.uid);
+      } else {
+        await addValidation(resourceId, user.uid);
+      }
+
+      // Reload resources to ensure sync with Firebase
+      await loadResources();
     } catch (error) {
       console.error("Error toggling validation:", error);
       alert('Error al actualizar la validación');
+      // Reload to restore correct state in case of error
+      await loadResources();
     }
   };
 
