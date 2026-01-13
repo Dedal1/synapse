@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings } from 'lucide-react';
@@ -652,29 +652,31 @@ export default function App() {
     }
   };
 
-  const filteredResources = resources
-    .filter(r => {
-      // Filtro de búsqueda
-      const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           r.author.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredResources = useMemo(() => {
+    return resources
+      .filter(r => {
+        // Filtro de búsqueda
+        const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             r.author.toLowerCase().includes(searchTerm.toLowerCase());
 
-      // Filtro de categoría
-      const matchesCategory = filterCategory === 'Todas' || r.category === filterCategory;
+        // Filtro de categoría
+        const matchesCategory = filterCategory === 'Todas' || r.category === filterCategory;
 
-      // Filtro de favoritos
-      if (showOnlyFavorites) {
-        return matchesSearch && matchesCategory && userFavorites.includes(r.id);
-      }
+        // Filtro de favoritos
+        if (showOnlyFavorites) {
+          return matchesSearch && matchesCategory && userFavorites.includes(r.id);
+        }
 
-      return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      // Ordenar por número de validaciones (mayor a menor), luego por fecha
-      const validationDiff = (b.validatedBy?.length || 0) - (a.validatedBy?.length || 0);
-      if (validationDiff !== 0) return validationDiff;
-      // Si tienen las mismas validaciones, mostrar los más recientes primero
-      return (b.uploadedAt?.seconds || 0) - (a.uploadedAt?.seconds || 0);
-    });
+        return matchesSearch && matchesCategory;
+      })
+      .sort((a, b) => {
+        // Ordenar por número de validaciones (mayor a menor), luego por fecha
+        const validationDiff = (b.validatedBy?.length || 0) - (a.validatedBy?.length || 0);
+        if (validationDiff !== 0) return validationDiff;
+        // Si tienen las mismas validaciones, mostrar los más recientes primero
+        return (b.uploadedAt?.seconds || 0) - (a.uploadedAt?.seconds || 0);
+      });
+  }, [resources, searchTerm, filterCategory, showOnlyFavorites, userFavorites]);
 
   if (loading) {
     return (
