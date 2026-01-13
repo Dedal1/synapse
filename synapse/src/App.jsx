@@ -1084,9 +1084,13 @@ export default function App() {
                     </div>
                     {/* Copyright Report Link */}
                     <a
-                      href={`mailto:support@synapse.com?subject=Reporte%20Copyright%20ID%3A${resource.id}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20infringir%20derechos%20de%20autor%3A%0A%0AID%3A%20${resource.id}%0ATítulo%3A%20${encodeURIComponent(resource.title)}%0A%0APor%20favor%20describe%20el%20problema%3A%0A`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition mt-1"
+                      href={`mailto:soporte@synapse.app?subject=Reporte%20Copyright%20-%20ID%3A%20${resource.id}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20posible%20infracción%20de%20copyright%3A%0A%0AID%20del%20Recurso%3A%20${resource.id}%0ATítulo%3A%20${encodeURIComponent(resource.title)}%0AAutor%3A%20${encodeURIComponent(resource.author)}%0A%0AMotivo%20del%20reporte%3A%0A%0A%0A%0AFirma%3A%0A`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        window.location.href = e.currentTarget.href;
+                      }}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600 transition-colors mt-1"
                       title="Reportar infracción de copyright"
                     >
                       <Flag size={12} />
