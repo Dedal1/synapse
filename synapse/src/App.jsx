@@ -541,25 +541,17 @@ export default function App() {
 
   const handleToggleValidation = async (resourceId) => {
     if (!user) {
-      return; // Silent fail - no alert to avoid annoying popups
+      return;
     }
-
-    console.log('🎯 CLICKED ID:', resourceId);
 
     // Find resource and calculate validation state BEFORE any updates
     const resource = resources.find(r => r.id === resourceId);
     if (!resource) {
-      console.error("❌ Resource not found for ID:", resourceId);
-      console.log('📋 Available IDs:', resources.map(r => ({ id: r.id, title: r.title })));
       return;
     }
 
-    console.log('✅ Found resource:', resource.title);
-
     const validatedBy = resource.validatedBy || [];
     const hasValidated = validatedBy.includes(user.uid);
-
-    console.log('🔄 Toggling validation:', hasValidated ? 'REMOVE' : 'ADD');
 
     // 1. Optimistic UI update (instant feedback)
     setResources(prev => prev.map(r => {
@@ -567,8 +559,6 @@ export default function App() {
         const newValidatedBy = hasValidated
           ? validatedBy.filter(uid => uid !== user.uid)
           : [...validatedBy, user.uid];
-
-        console.log('💾 Updating UI for:', r.title);
 
         return {
           ...r,
@@ -578,7 +568,7 @@ export default function App() {
       return r;
     }));
 
-    // 2. Silent background update to Firebase (uses the SAME hasValidated value)
+    // 2. Silent background update to Firebase
     try {
       if (hasValidated) {
         await removeValidation(resourceId, user.uid);
@@ -586,14 +576,7 @@ export default function App() {
         await addValidation(resourceId, user.uid);
       }
     } catch (error) {
-      console.error("Error updating validation in background:", error);
-
-      // Handle AdBlocker or network errors gracefully
-      if (error.code === 'ERR_BLOCKED_BY_CLIENT' || error.message?.includes('blocked')) {
-        console.warn('⚠️ Request blocked by AdBlocker - UI updated, but Firebase sync failed');
-      }
-
-      // UI remains updated optimistically - we don't revert
+      // Silent fail - AdBlocker or network errors don't break UI
     }
   };
 
@@ -898,8 +881,6 @@ export default function App() {
             const validationCount = currentResource.validatedBy?.length || 0;
             const isValidatedByUser = hasUserValidated(currentResource);
 
-            console.log(`[RENDER ${index}] ID: ${currentResourceId}, Title: ${currentResource.title}`);
-
             return (
               <div
                 key={currentResourceId}
@@ -1010,7 +991,6 @@ export default function App() {
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          console.log('🖱️ Button clicked for:', currentResource.title, 'ID:', currentResourceId);
                           handleToggleValidation(currentResourceId);
                         }}
                         className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
