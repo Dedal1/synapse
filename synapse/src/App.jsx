@@ -587,7 +587,13 @@ export default function App() {
       }
     } catch (error) {
       console.error("Error updating validation in background:", error);
-      // Optional: Revert UI if critical, but for now we leave it as-is
+
+      // Handle AdBlocker or network errors gracefully
+      if (error.code === 'ERR_BLOCKED_BY_CLIENT' || error.message?.includes('blocked')) {
+        console.warn('⚠️ Request blocked by AdBlocker - UI updated, but Firebase sync failed');
+      }
+
+      // UI remains updated optimistically - we don't revert
     }
   };
 
@@ -885,15 +891,20 @@ export default function App() {
             )}
           </div>
         ) : (
-          filteredResources.map((resource) => {
-            const validationCount = resource.validatedBy?.length || 0;
-            const isValidatedByUser = hasUserValidated(resource);
+          filteredResources.map((resource, index) => {
+            // Capture resource in a const to avoid closure issues
+            const currentResource = resource;
+            const currentResourceId = resource.id;
+            const validationCount = currentResource.validatedBy?.length || 0;
+            const isValidatedByUser = hasUserValidated(currentResource);
+
+            console.log(`[RENDER ${index}] ID: ${currentResourceId}, Title: ${currentResource.title}`);
 
             return (
               <div
-                key={resource.id}
+                key={currentResourceId}
                 className="bg-white rounded-2xl shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer relative overflow-hidden border border-slate-100"
-                onClick={() => handleCardClick(resource)}
+                onClick={() => handleCardClick(currentResource)}
               >
                 {/* Header - Thumbnail or Gradient */}
                 <div className={`w-full h-48 relative flex items-center justify-center overflow-hidden ${
@@ -999,8 +1010,8 @@ export default function App() {
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          console.log('🖱️ Button clicked for:', resource.title, 'ID:', resource.id);
-                          handleToggleValidation(resource.id);
+                          console.log('🖱️ Button clicked for:', currentResource.title, 'ID:', currentResourceId);
+                          handleToggleValidation(currentResourceId);
                         }}
                         className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                           isValidatedByUser
