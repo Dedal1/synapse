@@ -544,15 +544,22 @@ export default function App() {
       return; // Silent fail - no alert to avoid annoying popups
     }
 
+    console.log('🎯 CLICKED ID:', resourceId);
+
     // Find resource and calculate validation state BEFORE any updates
     const resource = resources.find(r => r.id === resourceId);
     if (!resource) {
-      console.error("Resource not found for validation:", resourceId);
+      console.error("❌ Resource not found for ID:", resourceId);
+      console.log('📋 Available IDs:', resources.map(r => ({ id: r.id, title: r.title })));
       return;
     }
 
+    console.log('✅ Found resource:', resource.title);
+
     const validatedBy = resource.validatedBy || [];
     const hasValidated = validatedBy.includes(user.uid);
+
+    console.log('🔄 Toggling validation:', hasValidated ? 'REMOVE' : 'ADD');
 
     // 1. Optimistic UI update (instant feedback)
     setResources(prev => prev.map(r => {
@@ -560,6 +567,8 @@ export default function App() {
         const newValidatedBy = hasValidated
           ? validatedBy.filter(uid => uid !== user.uid)
           : [...validatedBy, user.uid];
+
+        console.log('💾 Updating UI for:', r.title);
 
         return {
           ...r,
@@ -990,6 +999,7 @@ export default function App() {
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
+                          console.log('🖱️ Button clicked for:', resource.title, 'ID:', resource.id);
                           handleToggleValidation(resource.id);
                         }}
                         className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
