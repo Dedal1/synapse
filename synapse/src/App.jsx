@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings } from 'lucide-react';
+import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings, Flag } from 'lucide-react';
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -216,27 +216,38 @@ export default function App() {
     try {
       const pdfs = await getPDFs();
 
-      // 🔒 SAFETY: Ensure ALL resources have unique IDs
+      // 🔒 AGGRESSIVE FIX: FORCE regenerate ALL IDs to ensure uniqueness
       const sanitizedResources = pdfs.map((resource, index) => {
+        // Generate a guaranteed unique ID for EVERY resource
+        const uniqueId = resource.id ||
+                        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null) ||
+                        `res-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`;
+
         if (!resource.id) {
-          console.warn(`⚠️ Resource without ID found at index ${index}:`, resource.title);
-          // Generate a unique ID if missing
-          return {
-            ...resource,
-            id: `temp-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`
-          };
+          console.warn(`⚠️ Resource without ID at index ${index} (${resource.title}), assigned: ${uniqueId}`);
         }
-        return resource;
+
+        return {
+          ...resource,
+          id: uniqueId
+        };
       });
 
-      // 🔍 DEBUG: Log IDs to verify uniqueness
-      console.log('📋 Loaded resources with IDs:', sanitizedResources.map(r => ({ id: r.id, title: r.title })));
+      // 🔍 DEBUG: Log ALL IDs to verify uniqueness
+      console.log('📋 Loaded resources with IDs:');
+      sanitizedResources.forEach((r, idx) => {
+        console.log(`  [${idx}] ID: ${r.id} | Title: ${r.title}`);
+      });
 
-      // Check for duplicate IDs
+      // Check for duplicate IDs (should NEVER happen now)
       const ids = sanitizedResources.map(r => r.id);
-      const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-      if (duplicates.length > 0) {
-        console.error('❌ DUPLICATE IDs DETECTED:', duplicates);
+      const uniqueIds = new Set(ids);
+      if (ids.length !== uniqueIds.size) {
+        const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+        console.error('❌ CRITICAL: DUPLICATE IDs STILL DETECTED:', duplicates);
+        alert('ERROR: Recursos con IDs duplicados detectados. Contacta soporte.');
+      } else {
+        console.log('✅ All resources have unique IDs');
       }
 
       setResources(sanitizedResources);
@@ -1061,14 +1072,26 @@ export default function App() {
                   </div>
 
                   {/* Footer Info */}
-                  <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
-                    <span className="text-sm text-slate-600 font-medium truncate">
-                      {resource.author}
-                    </span>
-                    <div className="flex gap-1.5 items-center text-slate-500">
-                      <Download size={16} />
-                      <span className="text-sm font-semibold">{resource.downloads}</span>
+                  <div className="pt-4 border-t border-slate-100">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-slate-600 font-medium truncate">
+                        {resource.author}
+                      </span>
+                      <div className="flex gap-1.5 items-center text-slate-500">
+                        <Download size={16} />
+                        <span className="text-sm font-semibold">{resource.downloads}</span>
+                      </div>
                     </div>
+                    {/* Copyright Report Link */}
+                    <a
+                      href={`mailto:support@synapse.com?subject=Reporte%20Copyright%20ID%3A${resource.id}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20infringir%20derechos%20de%20autor%3A%0A%0AID%3A%20${resource.id}%0ATítulo%3A%20${encodeURIComponent(resource.title)}%0A%0APor%20favor%20describe%20el%20problema%3A%0A`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition mt-1"
+                      title="Reportar infracción de copyright"
+                    >
+                      <Flag size={12} />
+                      <span>Reportar</span>
+                    </a>
                   </div>
                 </div>
               </div>
