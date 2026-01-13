@@ -216,38 +216,40 @@ export default function App() {
     try {
       const pdfs = await getPDFs();
 
-      // 🔒 AGGRESSIVE FIX: FORCE regenerate ALL IDs to ensure uniqueness
+      // 🔒 NUCLEAR OPTION: FORCE regenerate ALL IDs - NEVER trust incoming IDs
+      const timestamp = Date.now();
       const sanitizedResources = pdfs.map((resource, index) => {
-        // Generate a guaranteed unique ID for EVERY resource
-        const uniqueId = resource.id ||
-                        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null) ||
-                        `res-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`;
+        // ALWAYS generate new ID using index + timestamp + random
+        // This guarantees uniqueness even if Firebase has duplicates
+        const uniqueId = `res-${index}-${timestamp}-${Math.random().toString(36).substr(2, 9)}`;
 
-        if (!resource.id) {
-          console.warn(`⚠️ Resource without ID at index ${index} (${resource.title}), assigned: ${uniqueId}`);
+        // Log if we're overwriting an existing ID (which might be duplicate)
+        if (resource.id) {
+          console.log(`🔄 Overwriting ID: ${resource.id} → ${uniqueId} | ${resource.title}`);
         }
 
         return {
           ...resource,
-          id: uniqueId
+          id: uniqueId,
+          originalFirebaseId: resource.id  // Keep Firebase ID for reference
         };
       });
 
       // 🔍 DEBUG: Log ALL IDs to verify uniqueness
-      console.log('📋 Loaded resources with IDs:');
+      console.log('📋 Loaded resources with NEW unique IDs:');
       sanitizedResources.forEach((r, idx) => {
-        console.log(`  [${idx}] ID: ${r.id} | Title: ${r.title}`);
+        console.log(`  [${idx}] ID: ${r.id} | Firebase: ${r.originalFirebaseId} | Title: ${r.title}`);
       });
 
-      // Check for duplicate IDs (should NEVER happen now)
+      // Paranoid check for duplicate IDs (should be IMPOSSIBLE now)
       const ids = sanitizedResources.map(r => r.id);
       const uniqueIds = new Set(ids);
       if (ids.length !== uniqueIds.size) {
         const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-        console.error('❌ CRITICAL: DUPLICATE IDs STILL DETECTED:', duplicates);
-        alert('ERROR: Recursos con IDs duplicados detectados. Contacta soporte.');
+        console.error('❌ IMPOSSIBLE: DUPLICATE IDs DETECTED AFTER REGENERATION:', duplicates);
+        alert('ERROR CRÍTICO: IDs duplicados después de regeneración. Reporta este bug.');
       } else {
-        console.log('✅ All resources have unique IDs');
+        console.log('✅ All resources have guaranteed unique IDs');
       }
 
       setResources(sanitizedResources);
@@ -1085,11 +1087,7 @@ export default function App() {
                     {/* Copyright Report Link */}
                     <a
                       href={`mailto:soporte@synapse.app?subject=Reporte%20Copyright%20-%20ID%3A%20${resource.id}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20posible%20infracción%20de%20copyright%3A%0A%0AID%20del%20Recurso%3A%20${resource.id}%0ATítulo%3A%20${encodeURIComponent(resource.title)}%0AAutor%3A%20${encodeURIComponent(resource.author)}%0A%0AMotivo%20del%20reporte%3A%0A%0A%0A%0AFirma%3A%0A`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        window.location.href = e.currentTarget.href;
-                      }}
+                      onClick={(e) => e.stopPropagation()}
                       className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600 transition-colors mt-1"
                       title="Reportar infracción de copyright"
                     >
