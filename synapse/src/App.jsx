@@ -539,8 +539,9 @@ export default function App() {
     }
   };
 
-  const handleToggleValidation = async (e, resourceId) => {
-    if (e) e.stopPropagation(); // Evitar que se abra el modal si viene de la card
+  const handleToggleValidation = async (resourceId) => {
+    // Debug log to track which resource is being validated
+    console.log('🔍 Validando ID:', resourceId);
 
     if (!user) {
       alert('Debes iniciar sesión para validar recursos');
@@ -550,33 +551,42 @@ export default function App() {
     try {
       const resource = resources.find(r => r.id === resourceId);
       if (!resource) {
-        console.error("Resource not found:", resourceId);
+        console.error("❌ Resource not found:", resourceId);
         return;
       }
+
+      console.log('✅ Resource encontrado:', resource.title);
 
       const validatedBy = resource.validatedBy || [];
       const hasValidated = validatedBy.includes(user.uid);
 
-      // Update local state immediately for instant UI feedback
-      const updatedResources = resources.map(r => {
+      console.log('📊 Validación actual:', { hasValidated, validatedBy });
+
+      // Update local state immediately using functional update for safety
+      setResources(prev => prev.map(r => {
         if (r.id === resourceId) {
+          const newValidatedBy = hasValidated
+            ? validatedBy.filter(uid => uid !== user.uid)
+            : [...validatedBy, user.uid];
+
+          console.log('🔄 Actualizando recurso:', r.title, 'Nueva validación:', newValidatedBy);
+
           return {
             ...r,
-            validatedBy: hasValidated
-              ? validatedBy.filter(uid => uid !== user.uid)
-              : [...validatedBy, user.uid]
+            validatedBy: newValidatedBy
           };
         }
         return r;
-      });
-      setResources(updatedResources);
+      }));
 
       // Update selected resource if modal is open
       if (selectedResource && selectedResource.id === resourceId) {
-        const updatedResource = updatedResources.find(r => r.id === resourceId);
-        if (updatedResource) {
-          setSelectedResource(updatedResource);
-        }
+        setSelectedResource(prev => ({
+          ...prev,
+          validatedBy: hasValidated
+            ? validatedBy.filter(uid => uid !== user.uid)
+            : [...validatedBy, user.uid]
+        }));
       }
 
       // Update Firebase in background
@@ -589,7 +599,7 @@ export default function App() {
       // Reload resources to ensure sync with Firebase
       await loadResources();
     } catch (error) {
-      console.error("Error toggling validation:", error);
+      console.error("❌ Error toggling validation:", error);
       alert('Error al actualizar la validación');
       // Reload to restore correct state in case of error
       await loadResources();
@@ -999,7 +1009,11 @@ export default function App() {
                   <div className="mb-4">
                     {user ? (
                       <button
-                        onClick={(e) => handleToggleValidation(e, resource.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleToggleValidation(resource.id);
+                        }}
                         className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                           isValidatedByUser
                             ? 'bg-green-500 text-white shadow-md hover:bg-green-600'
