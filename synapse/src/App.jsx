@@ -544,9 +544,13 @@ export default function App() {
       return;
     }
 
-    console.log("🖱️ Click en ID:", idToValidate); // DEBUG
+    console.log("🖱️ Click en ID:", idToValidate);
+    console.log("📋 Total resources en estado:", resources.length);
+    console.log("🔍 Buscando en recursos:", resources.map(r => `${r.id}: ${r.title}`));
 
     setResources(prevResources => {
+      console.log("📦 prevResources tiene:", prevResources.length, "items");
+
       return prevResources.map(resource => {
         // Comparación ESTRICTA por ID. Nunca por índice.
         if (resource.id === idToValidate) {
@@ -557,6 +561,7 @@ export default function App() {
             : [...validatedBy, user.uid];
 
           console.log("✅ Encontrado y actualizado:", resource.title);
+          console.log("   ID coincide:", resource.id, "===", idToValidate);
 
           // Silent background update to Firebase
           (async () => {
