@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings, Flag } from 'lucide-react';
@@ -9,8 +9,201 @@ import * as pdfjsLib from 'pdfjs-dist';
 // Configure PDF.js worker - Use local worker for reliability with Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-console.log('[PDF.js] Version:', pdfjsLib.version);
-console.log('[PDF.js] Worker configured:', pdfjsLib.GlobalWorkerOptions.workerSrc);
+// =====================================================
+// COMPONENTE RESOURCECARD - Aislado para evitar bugs de closure
+// =====================================================
+const ResourceCard = memo(function ResourceCard({
+  resource,
+  user,
+  validFavorites,
+  onCardClick,
+  onToggleValidation,
+  onToggleFavorite,
+  onDeleteResource,
+  onLoadPreview,
+  getGradient,
+  getCategoryColor,
+}) {
+  // Calcular TODO dentro del componente con el resource específico
+  const resourceId = resource.id;
+  const resourceTitle = resource.title;
+  const validationCount = resource.validatedBy?.length || 0;
+  const isValidatedByUser = user && resource.validatedBy?.includes(user.uid);
+  const isFavorite = validFavorites.includes(resourceId);
+  const isOwner = user && user.uid === resource.userId;
+
+  const handleValidationClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onToggleValidation(resourceId);
+  };
+
+  const handleFavoriteClick = (e) => {
+    e.stopPropagation();
+    onToggleFavorite(e, resourceId);
+  };
+
+  const handleDeleteClick = (e) => {
+    e.stopPropagation();
+    onDeleteResource(e, resource);
+  };
+
+  const handlePreviewClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onLoadPreview(resource);
+  };
+
+  return (
+    <div
+      className="bg-white rounded-2xl shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer relative overflow-hidden border border-slate-100"
+      onClick={() => onCardClick(resource)}
+    >
+      {/* Header - Thumbnail or Gradient */}
+      <div className={`w-full h-48 relative flex items-center justify-center overflow-hidden ${
+        resource.thumbnailUrl ? '' : `bg-gradient-to-br ${getGradient(resourceId)}`
+      }`}>
+        {resource.thumbnailUrl ? (
+          <img
+            src={resource.thumbnailUrl}
+            alt={resourceTitle}
+            className="w-full h-full object-cover block"
+            style={{ objectPosition: 'center top' }}
+          />
+        ) : resource.avatarUrl ? (
+          <img
+            src={resource.avatarUrl}
+            alt={resourceTitle}
+            className="w-16 h-16 drop-shadow-lg"
+          />
+        ) : (
+          <FileText className="h-12 w-12 text-white drop-shadow-lg" />
+        )}
+
+        {/* Top-left bookmark button */}
+        {user && (
+          <button
+            onClick={handleFavoriteClick}
+            className="absolute top-3 left-3 p-2 bg-white/95 rounded-full hover:bg-indigo-50 transition shadow-sm z-10"
+            title={isFavorite ? "Quitar de guardados" : "Guardar para después"}
+          >
+            <Bookmark
+              size={18}
+              className={`transition-all ${
+                isFavorite
+                  ? 'fill-indigo-600 text-indigo-600'
+                  : 'text-slate-600'
+              }`}
+            />
+          </button>
+        )}
+
+        {/* Top-right badges/buttons */}
+        <div className="absolute top-3 right-3 flex gap-2 z-10">
+          {/* Preview button */}
+          {resource.previewUrls && resource.previewUrls.length > 0 && (
+            <button
+              onClick={handlePreviewClick}
+              className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition shadow-sm group"
+              title="Vista rápida"
+            >
+              <Eye size={18} className="text-white" />
+            </button>
+          )}
+
+          {!user && (
+            <div className="bg-white/95 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-semibold shadow-sm">
+              Login requerido
+            </div>
+          )}
+          {isOwner && (
+            <button
+              onClick={handleDeleteClick}
+              className="p-2 bg-white/95 text-red-600 rounded-full hover:bg-red-50 transition shadow-sm"
+              title="Eliminar recurso"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Card Content */}
+      <div className="p-6">
+        {/* Title */}
+        <h3 className="font-bold text-xl text-slate-900 mb-2 line-clamp-2">{resourceTitle}</h3>
+
+        {/* Description */}
+        {resource.description && (
+          <p className="text-sm text-slate-600 mb-3 line-clamp-2 leading-relaxed">
+            {resource.description}
+          </p>
+        )}
+
+        {/* Badges: Category and AI Model */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          {resource.category && (
+            <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${getCategoryColor(resource.category)}`}>
+              {resource.category}
+            </span>
+          )}
+          <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-full">
+            {resource.aiModel || 'NotebookLM'}
+          </span>
+        </div>
+
+        {/* Validation Button */}
+        <div className="mb-4">
+          {user ? (
+            <button
+              type="button"
+              onClick={handleValidationClick}
+              className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                isValidatedByUser
+                  ? 'bg-green-500 text-white shadow-md hover:bg-green-600'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <Check size={18} className={isValidatedByUser ? 'stroke-2' : ''} />
+              {isValidatedByUser ? 'Validado por ti' : 'Validar utilidad'}
+            </button>
+          ) : (
+            <div className="py-2.5 px-4 bg-slate-50 rounded-lg text-center text-sm text-slate-500">
+              <Check size={18} className="inline mr-2" />
+              Inicia sesión para validar
+            </div>
+          )}
+          <p className="text-xs text-slate-600 mt-2 text-center">
+            {validationCount} {validationCount === 1 ? 'validación' : 'validaciones'}
+          </p>
+        </div>
+
+        {/* Footer Info */}
+        <div className="pt-4 border-t border-slate-100">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-slate-600 font-medium truncate">
+              {resource.author}
+            </span>
+            <div className="flex gap-1.5 items-center text-slate-500">
+              <Download size={16} />
+              <span className="text-sm font-semibold">{resource.downloads}</span>
+            </div>
+          </div>
+          {/* Copyright Report Link */}
+          <a
+            href={`mailto:soporte@synapse.app?subject=Reporte%20Copyright%20-%20ID%3A%20${resourceId}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20posible%20infracción%20de%20copyright%3A%0A%0AID%20del%20Recurso%3A%20${resourceId}%0ATítulo%3A%20${encodeURIComponent(resourceTitle)}%0AAutor%3A%20${encodeURIComponent(resource.author)}%0A%0AMotivo%20del%20reporte%3A%0A%0A%0A%0AFirma%3A%0A`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600 transition-colors mt-1"
+            title="Reportar infracción de copyright"
+          >
+            <Flag size={12} />
+            <span>Reportar</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 export default function App() {
   const navigate = useNavigate();
@@ -166,7 +359,12 @@ export default function App() {
     }
 
     const unsubscribe = subscribeToFavorites(user.uid, (favorites) => {
-      setUserFavorites(favorites);
+      // FIX BUG #1: Asegurar que favorites siempre sea un array válido
+      // y filtrar cualquier valor null/undefined que pudiera venir de Firebase
+      const cleanFavorites = Array.isArray(favorites) 
+        ? favorites.filter(id => id != null && id !== '') 
+        : [];
+      setUserFavorites(cleanFavorites);
     });
 
     return () => unsubscribe();
@@ -215,9 +413,14 @@ export default function App() {
   const loadResources = async () => {
     try {
       const pdfs = await getPDFs();
-      setResources(pdfs);
+      // Asegurar que cada recurso tenga validatedBy como array vacío si no existe
+      const cleanedPdfs = pdfs.map(pdf => ({
+        ...pdf,
+        validatedBy: Array.isArray(pdf.validatedBy) ? pdf.validatedBy : [],
+      }));
+      setResources(cleanedPdfs);
     } catch (error) {
-      console.error("Error loading resources:", error);
+      // Silent error - resources will remain empty
     }
   };
 
@@ -539,46 +742,48 @@ export default function App() {
     }
   };
 
-  const handleToggleValidation = (idToValidate) => {
+  // =====================================================
+  // FIX BUG #2: VALIDACIÓN CRUZADA - Usar SIEMPRE el ID
+  // =====================================================
+  const handleToggleValidation = (resourceId) => {
+    // Validación defensiva: asegurar que tenemos un ID válido
+    if (!resourceId || typeof resourceId !== 'string') {
+      return;
+    }
+
     if (!user) {
       return;
     }
 
-    console.log("🖱️ Click en ID:", idToValidate);
-    console.log("📋 Total resources en estado:", resources.length);
-    console.log("🔍 Buscando en recursos:", resources.map(r => `${r.id}: ${r.title}`));
-
     setResources(prevResources => {
-      console.log("📦 prevResources tiene:", prevResources.length, "items");
-
       return prevResources.map(resource => {
-        // Comparación ESTRICTA por ID. Nunca por índice.
-        if (resource.id === idToValidate) {
-          const validatedBy = resource.validatedBy || [];
-          const hasValidated = validatedBy.includes(user.uid);
-          const newValidatedBy = hasValidated
-            ? validatedBy.filter(uid => uid !== user.uid)
-            : [...validatedBy, user.uid];
-
-          console.log("✅ Encontrado y actualizado:", resource.title);
-          console.log("   ID coincide:", resource.id, "===", idToValidate);
-
-          // Silent background update to Firebase
-          (async () => {
-            try {
-              if (hasValidated) {
-                await removeValidation(idToValidate, user.uid);
-              } else {
-                await addValidation(idToValidate, user.uid);
-              }
-            } catch (error) {
-              // Silent fail - AdBlocker or network errors don't break UI
-            }
-          })();
-
-          return { ...resource, validatedBy: newValidatedBy };
+        // Comparación ESTRICTA por ID único
+        if (resource.id !== resourceId) {
+          return resource;
         }
-        return resource;
+
+        // Este ES el recurso correcto - proceder con la validación
+        const validatedBy = Array.isArray(resource.validatedBy) ? resource.validatedBy : [];
+        const hasValidated = validatedBy.includes(user.uid);
+        
+        const newValidatedBy = hasValidated
+          ? validatedBy.filter(uid => uid !== user.uid)
+          : [...validatedBy, user.uid];
+
+        // Background update to Firebase
+        (async () => {
+          try {
+            if (hasValidated) {
+              await removeValidation(resourceId, user.uid);
+            } else {
+              await addValidation(resourceId, user.uid);
+            }
+          } catch (error) {
+            // Silent fail - AdBlocker or network errors don't break UI
+          }
+        })();
+
+        return { ...resource, validatedBy: newValidatedBy };
       });
     });
   };
@@ -629,6 +834,19 @@ export default function App() {
     }
   };
 
+  // =====================================================
+  // FIX BUG MARCADORES: Solo contar favoritos que existen en resources
+  // Esto evita el "fantasma" de favoritos huérfanos en Firebase
+  // =====================================================
+  const validFavorites = useMemo(() => {
+    const resourceIds = new Set(resources.map(r => r.id));
+    return userFavorites.filter(favId => resourceIds.has(favId));
+  }, [resources, userFavorites]);
+
+  // =====================================================
+  // FIX: Contador de favoritos ahora viene de validFavorites
+  // NO de ningún campo isSaved hardcodeado en los recursos
+  // =====================================================
   const filteredResources = useMemo(() => {
     return resources
       .filter(r => {
@@ -639,21 +857,18 @@ export default function App() {
         // Filtro de categoría
         const matchesCategory = filterCategory === 'Todas' || r.category === filterCategory;
 
-        // Filtro de favoritos
+        // Filtro de favoritos - usar validFavorites (solo IDs que existen)
         if (showOnlyFavorites) {
-          return matchesSearch && matchesCategory && userFavorites.includes(r.id);
+          return matchesSearch && matchesCategory && validFavorites.includes(r.id);
         }
 
         return matchesSearch && matchesCategory;
       })
+      // Ordenar SOLO por fecha de subida (estable, no cambia con interacciones)
       .sort((a, b) => {
-        // Ordenar por número de validaciones (mayor a menor), luego por fecha
-        const validationDiff = (b.validatedBy?.length || 0) - (a.validatedBy?.length || 0);
-        if (validationDiff !== 0) return validationDiff;
-        // Si tienen las mismas validaciones, mostrar los más recientes primero
         return (b.uploadedAt?.seconds || 0) - (a.uploadedAt?.seconds || 0);
       });
-  }, [resources, searchTerm, filterCategory, showOnlyFavorites, userFavorites]);
+  }, [resources, searchTerm, filterCategory, showOnlyFavorites, validFavorites]);
 
   if (loading) {
     return (
@@ -709,11 +924,17 @@ export default function App() {
                   <Upload size={18} /> Subir PDF
                 </button>
                 <div className="flex items-center gap-3">
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName}
-                    className="w-10 h-10 rounded-full border-2 border-indigo-600"
-                  />
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName}
+                      className="w-10 h-10 rounded-full border-2 border-indigo-600"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full border-2 border-indigo-600 bg-indigo-100 flex items-center justify-center">
+                      <User size={20} className="text-indigo-600" />
+                    </div>
+                  )}
 
                   {/* Manage Subscription button - Only for PRO users */}
                   {(user.isPro || false) && (
@@ -801,11 +1022,12 @@ export default function App() {
             >
               <Bookmark size={20} className={showOnlyFavorites ? 'fill-white' : ''} />
               {showOnlyFavorites ? 'Mostrando guardados' : 'Ver mis guardados'}
-              {userFavorites.length > 0 && (
+              {/* Contador usa validFavorites (solo IDs que existen en resources) */}
+              {validFavorites.length > 0 && (
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                   showOnlyFavorites ? 'bg-white/20' : 'bg-indigo-100 text-indigo-700'
                 }`}>
-                  {userFavorites.length}
+                  {validFavorites.length}
                 </span>
               )}
             </button>
@@ -877,168 +1099,24 @@ export default function App() {
             )}
           </div>
         ) : (
-          filteredResources.map((resource) => {
-            const validationCount = resource.validatedBy?.length || 0;
-            const isValidatedByUser = hasUserValidated(resource);
-
-            return (
-              <div
-                key={resource.id}
-                className="bg-white rounded-2xl shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer relative overflow-hidden border border-slate-100"
-                onClick={() => handleCardClick(resource)}
-              >
-                {/* Header - Thumbnail or Gradient */}
-                <div className={`w-full h-48 relative flex items-center justify-center overflow-hidden ${
-                  resource.thumbnailUrl ? '' : `bg-gradient-to-br ${getGradient(resource.id)}`
-                }`}>
-                  {resource.thumbnailUrl ? (
-                    <img
-                      src={resource.thumbnailUrl}
-                      alt={resource.title}
-                      className="w-full h-full object-cover block"
-                      style={{ objectPosition: 'center top' }}
-                    />
-                  ) : resource.avatarUrl ? (
-                    <img
-                      src={resource.avatarUrl}
-                      alt={resource.title}
-                      className="w-16 h-16 drop-shadow-lg"
-                    />
-                  ) : (
-                    <FileText className="h-12 w-12 text-white drop-shadow-lg" />
-                  )}
-
-                  {/* Top-left bookmark button */}
-                  {user && (
-                    <button
-                      onClick={(e) => handleToggleFavorite(e, resource.id)}
-                      className="absolute top-3 left-3 p-2 bg-white/95 rounded-full hover:bg-indigo-50 transition shadow-sm z-10"
-                      title={userFavorites.includes(resource.id) ? "Quitar de guardados" : "Guardar para después"}
-                    >
-                      <Bookmark
-                        size={18}
-                        className={`transition-all ${
-                          userFavorites.includes(resource.id)
-                            ? 'fill-indigo-600 text-indigo-600'
-                            : 'text-slate-600'
-                        }`}
-                      />
-                    </button>
-                  )}
-
-                  {/* Top-right badges/buttons */}
-                  <div className="absolute top-3 right-3 flex gap-2 z-10">
-                    {/* Preview button (Eye overlay) */}
-                    {resource.previewUrls && resource.previewUrls.length > 0 && (
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          loadPdfPreview(resource);
-                        }}
-                        className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition shadow-sm group"
-                        title="Vista rápida"
-                      >
-                        <Eye size={18} className="text-white" />
-                      </button>
-                    )}
-
-                    {!user && (
-                      <div className="bg-white/95 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-semibold shadow-sm">
-                        Login requerido
-                      </div>
-                    )}
-                    {user && user.uid === resource.userId && (
-                      <button
-                        onClick={(e) => handleDeleteResource(e, resource)}
-                        className="p-2 bg-white/95 text-red-600 rounded-full hover:bg-red-50 transition shadow-sm"
-                        title="Eliminar recurso"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card Content */}
-                <div className="p-6">
-                  {/* Title */}
-                  <h3 className="font-bold text-xl text-slate-900 mb-2 line-clamp-2">{resource.title}</h3>
-
-                  {/* Description */}
-                  {resource.description && (
-                    <p className="text-sm text-slate-600 mb-3 line-clamp-2 leading-relaxed">
-                      {resource.description}
-                    </p>
-                  )}
-
-                  {/* Badges: Category and AI Model */}
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {resource.category && (
-                      <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${getCategoryColor(resource.category)}`}>
-                        {resource.category}
-                      </span>
-                    )}
-                    <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-full">
-                      {resource.aiModel || 'NotebookLM'}
-                    </span>
-                  </div>
-
-                  {/* Validation Button */}
-                  <div className="mb-4">
-                    {user ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          handleToggleValidation(resource.id);
-                        }}
-                        className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
-                          isValidatedByUser
-                            ? 'bg-green-500 text-white shadow-md hover:bg-green-600'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        <Check size={18} className={isValidatedByUser ? 'stroke-2' : ''} />
-                        {isValidatedByUser ? 'Validado por ti' : 'Validar utilidad'}
-                      </button>
-                    ) : (
-                      <div className="py-2.5 px-4 bg-slate-50 rounded-lg text-center text-sm text-slate-500">
-                        <Check size={18} className="inline mr-2" />
-                        Inicia sesión para validar
-                      </div>
-                    )}
-                    <p className="text-xs text-slate-600 mt-2 text-center">
-                      {validationCount} {validationCount === 1 ? 'validación' : 'validaciones'}
-                    </p>
-                  </div>
-
-                  {/* Footer Info */}
-                  <div className="pt-4 border-t border-slate-100">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-slate-600 font-medium truncate">
-                        {resource.author}
-                      </span>
-                      <div className="flex gap-1.5 items-center text-slate-500">
-                        <Download size={16} />
-                        <span className="text-sm font-semibold">{resource.downloads}</span>
-                      </div>
-                    </div>
-                    {/* Copyright Report Link */}
-                    <a
-                      href={`mailto:soporte@synapse.app?subject=Reporte%20Copyright%20-%20ID%3A%20${resource.id}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20posible%20infracción%20de%20copyright%3A%0A%0AID%20del%20Recurso%3A%20${resource.id}%0ATítulo%3A%20${encodeURIComponent(resource.title)}%0AAutor%3A%20${encodeURIComponent(resource.author)}%0A%0AMotivo%20del%20reporte%3A%0A%0A%0A%0AFirma%3A%0A`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600 transition-colors mt-1"
-                      title="Reportar infracción de copyright"
-                    >
-                      <Flag size={12} />
-                      <span>Reportar</span>
-                    </a>
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          // =====================================================
+          // FIX BUG #2: Renderizado completamente aislado por tarjeta
+          // =====================================================
+          filteredResources.map((resource) => (
+            <ResourceCard
+              key={`card-${resource.id}`}
+              resource={resource}
+              user={user}
+              validFavorites={validFavorites}
+              onCardClick={handleCardClick}
+              onToggleValidation={handleToggleValidation}
+              onToggleFavorite={handleToggleFavorite}
+              onDeleteResource={handleDeleteResource}
+              onLoadPreview={loadPdfPreview}
+              getGradient={getGradient}
+              getCategoryColor={getCategoryColor}
+            />
+          ))
         )}
       </main>
 
@@ -1107,20 +1185,17 @@ export default function App() {
                   ))}
 
                   {/* CTA to download */}
-                  <div className="bg-indigo-50 border-2 border-indigo-200 rounded-xl p-6 text-center shadow-md">
-                    <p className="text-indigo-900 font-semibold mb-4">
-                      ¿Te gusta lo que ves? Descarga el documento completo
-                    </p>
+                  <div className="text-center pt-4">
+                    <p className="text-slate-600 mb-4">¿Te interesa? Descarga el documento completo</p>
                     <button
                       onClick={() => {
                         setShowPreviewModal(false);
-                        // El modal de recurso sigue abierto, solo ejecutar download
                         handleDownloadFromModal();
                       }}
                       className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2"
                     >
                       <Download size={20} />
-                      Descargar Completo
+                      Descargar Documento
                     </button>
                   </div>
                 </div>
@@ -1130,78 +1205,74 @@ export default function App() {
         </div>
       )}
 
-      {/* Limit Reached Modal */}
+      {/* Download Limit Modal */}
       {showLimitModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowLimitModal(false)}>
-          <div className="bg-white rounded-2xl max-w-md w-full relative shadow-2xl p-8" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 text-center relative">
             <button
               onClick={() => setShowLimitModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 transition"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition"
             >
               <X size={24} />
             </button>
 
-            {/* Icon */}
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4">
-                <Zap className="text-amber-600" size={32} />
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full mb-6">
+              <Zap className="text-white" size={40} />
+            </div>
+
+            <h2 className="text-3xl font-extrabold text-slate-900 mb-4">
+              ¡Límite alcanzado! 🚀
+            </h2>
+
+            <p className="text-lg text-slate-600 mb-6">
+              Has alcanzado tu límite de <strong>{FREE_LIMIT} descargas gratuitas</strong> este mes.
+            </p>
+
+            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border-2 border-indigo-200">
+              <p className="font-bold text-indigo-900 mb-4">Con Synapse PRO obtienes:</p>
+              <div className="space-y-3 text-left">
+                <div className="flex items-center gap-3">
+                  <Check size={20} className="text-green-600 flex-shrink-0" />
+                  <span className="text-slate-800">Descargas ilimitadas</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Check size={20} className="text-green-600 flex-shrink-0" />
+                  <span className="text-slate-800">Acceso prioritario a nuevos recursos</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Check size={20} className="text-green-600 flex-shrink-0" />
+                  <span className="text-slate-800">Sin publicidad</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Check size={20} className="text-green-600 flex-shrink-0" />
+                  <span className="text-slate-800">Soporte prioritario</span>
+                </div>
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">
-                Límite Gratuito Alcanzado
-              </h2>
-              <p className="text-slate-600">
-                Has usado tus <span className="font-bold">{FREE_LIMIT} descargas gratuitas</span> de este mes.
-              </p>
             </div>
 
-            {/* Benefits list */}
-            <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 mb-6 border border-indigo-200">
-              <p className="font-bold text-indigo-900 mb-3">Actualiza a PRO y obtén:</p>
-              <ul className="space-y-2 text-sm text-indigo-800">
-                <li className="flex items-start gap-2">
-                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Descargas ilimitadas</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Acceso prioritario a nuevos recursos</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Sin publicidad</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check size={18} className="text-green-600 mt-0.5 flex-shrink-0" />
-                  <span>Soporte prioritario</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* CTA */}
             <button
-              onClick={() => {
-                setShowLimitModal(false);
-                handleUpgradeToPro();
-              }}
-              className="w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition flex items-center justify-center gap-3"
+              onClick={handleUpgradeToPro}
+              className="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg"
             >
-              <Zap size={24} />
-              Actualizar a PRO
+              Actualizar a PRO - 9.99€/mes
             </button>
 
-            <p className="text-center text-xs text-slate-500 mt-4">
-              Tu límite se reiniciará el próximo mes
-            </p>
+            <button
+              onClick={() => setShowLimitModal(false)}
+              className="mt-3 text-sm text-slate-500 hover:text-slate-700"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}
 
-      {/* Floating "Back to Top" Button */}
+      {/* Back to Top Button */}
       {showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="fixed bottom-8 right-8 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 z-50 hover:scale-110"
-          aria-label="Volver arriba"
+          className="fixed bottom-8 right-8 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-all duration-300 z-40"
+          title="Volver arriba"
         >
           <ArrowUp size={24} />
         </button>
@@ -1209,17 +1280,16 @@ export default function App() {
 
       {/* Cookie Banner */}
       {showCookieBanner && (
-        <div className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-4 shadow-2xl z-50 border-t border-slate-700">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
-            <p className="text-sm flex-1 min-w-[250px]">
-              Usamos cookies propias y de terceros para gestionar la sesión y los pagos seguros. Al seguir navegando, aceptas su uso.
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-4 z-50">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-center sm:text-left">
+              Utilizamos cookies para mejorar tu experiencia. Al continuar navegando, aceptas nuestra política de cookies.
             </p>
             <button
               onClick={handleCloseCookieBanner}
-              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-800 transition-colors"
-              aria-label="Cerrar banner de cookies"
+              className="px-6 py-2 bg-indigo-600 text-white rounded-full font-semibold hover:bg-indigo-700 transition whitespace-nowrap"
             >
-              <X size={20} />
+              Aceptar
             </button>
           </div>
         </div>
@@ -1227,108 +1297,88 @@ export default function App() {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full relative max-h-[90vh] overflow-y-auto">
-            <div className="p-8 pb-10">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowUploadModal(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center rounded-t-3xl z-10">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Compartir Recurso</h2>
+                <p className="text-sm text-slate-600 mt-1">Sube un PDF para compartir con la comunidad</p>
+              </div>
               <button
-                onClick={() => {
-                  setShowUploadModal(false);
-                  setAcceptedTerms(false);
-                  setResourceDescription('');
-                  setSelectedFile(null);
-                  setSelectedAiModel('');
-                  setSelectedCategory('');
-                  setOriginalSource('');
-                  setThumbnailBlob(null);
-                  setThumbnailPreview(null);
-                }}
-                className="absolute top-4 right-4 text-slate-400 hover:text-slate-900 z-10"
+                onClick={() => setShowUploadModal(false)}
+                className="text-slate-400 hover:text-slate-900 transition p-2"
               >
                 <X size={24} />
               </button>
-              <h2 className="text-2xl font-bold mb-6">Publicar Recurso</h2>
+            </div>
 
-            {/* File Selection Area */}
-            {!selectedFile ? (
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition-all mb-4 ${
-                  isDragging
-                    ? 'border-indigo-500 bg-indigo-50 border-solid'
-                    : 'border-slate-300 bg-transparent'
-                }`}
-              >
-                <Upload
-                  className={`mx-auto mb-4 transition-colors ${
-                    isDragging ? 'text-indigo-700' : 'text-indigo-600'
-                  }`}
-                  size={48}
-                />
-                <p className="text-slate-600 mb-2 font-medium">
-                  {isDragging ? '¡Suelta el archivo aquí!' : 'Arrastra un PDF aquí'}
-                </p>
-                <p className="text-slate-400 text-sm mb-4">o</p>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileInput}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-full cursor-pointer hover:bg-indigo-700 transition"
-                >
-                  Seleccionar archivo
-                </label>
-              </div>
-            ) : (
-              <div className="mb-4">
-                {/* Thumbnail Preview */}
-                {generatingThumbnail && (
-                  <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded-xl text-center">
-                    <p className="text-sm text-blue-700 font-medium">Generando vistas previas (3 páginas)...</p>
-                  </div>
-                )}
-
-                {thumbnailPreview && (
-                  <div className="mb-3 rounded-xl overflow-hidden border-2 border-indigo-200">
+            {/* Modal Content */}
+            <div className="p-6 pt-4">
+            {/* File Drop Zone */}
+            <div
+              className={`border-2 border-dashed rounded-2xl p-8 text-center mb-6 transition-all ${
+                isDragging
+                  ? 'border-indigo-500 bg-indigo-50'
+                  : selectedFile
+                    ? 'border-green-400 bg-green-50'
+                    : 'border-slate-300 hover:border-indigo-400'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {generatingThumbnail ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                  <p className="text-slate-600">Generando vista previa...</p>
+                </div>
+              ) : selectedFile ? (
+                <div className="flex flex-col items-center gap-4">
+                  {thumbnailPreview ? (
                     <img
                       src={thumbnailPreview}
-                      alt="Vista previa"
-                      className="w-full h-48 object-cover"
+                      alt="Preview"
+                      className="w-32 h-40 object-cover rounded-lg shadow-md border-2 border-white"
                     />
+                  ) : (
+                    <FileText className="text-green-600" size={48} />
+                  )}
+                  <div>
+                    <p className="font-semibold text-slate-900">{selectedFile.name}</p>
+                    <p className="text-sm text-slate-500">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
-                )}
-
-                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <FileText className="text-indigo-600" size={40} />
-                    <div className="flex-1">
-                      <p className="font-semibold text-slate-900">{selectedFile.name}</p>
-                      <p className="text-sm text-slate-600">
-                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedFile(null);
-                        setThumbnailBlob(null);
-                        setThumbnailPreview(null);
-                      }}
-                      className="p-2 text-slate-500 hover:text-red-600 transition"
-                      title="Cambiar archivo"
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setThumbnailBlob(null);
+                      setThumbnailPreview(null);
+                      setPreviewBlobs([]);
+                    }}
+                    className="text-red-600 hover:text-red-700 text-sm font-medium"
+                  >
+                    Cambiar archivo
+                  </button>
                 </div>
-              </div>
-            )}
+              ) : (
+                <>
+                  <Upload className="mx-auto text-slate-400 mb-4" size={48} />
+                  <p className="text-slate-600 mb-2">Arrastra tu PDF aquí o</p>
+                  <label className="inline-block px-6 py-2 bg-indigo-600 text-white rounded-full cursor-pointer hover:bg-indigo-700 transition">
+                    Seleccionar archivo
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleFileInput}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-slate-500 mt-4">Solo archivos PDF, máximo 10MB</p>
+                </>
+              )}
+            </div>
 
-            {/* Description Field - Now Required */}
+            {/* Description Input */}
             <div className="mb-4">
               <label htmlFor="description" className="block text-sm font-semibold text-slate-700 mb-2">
                 Descripción <span className="text-red-500">*</span>
