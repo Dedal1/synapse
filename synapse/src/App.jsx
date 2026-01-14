@@ -539,45 +539,43 @@ export default function App() {
     }
   };
 
-  const handleToggleValidation = async (resourceId) => {
+  const handleToggleValidation = (idToValidate) => {
     if (!user) {
       return;
     }
 
-    // Find resource and calculate validation state BEFORE any updates
-    const resource = resources.find(r => r.id === resourceId);
-    if (!resource) {
-      return;
-    }
+    console.log("🖱️ Click en ID:", idToValidate); // DEBUG
 
-    const validatedBy = resource.validatedBy || [];
-    const hasValidated = validatedBy.includes(user.uid);
+    setResources(prevResources => {
+      return prevResources.map(resource => {
+        // Comparación ESTRICTA por ID. Nunca por índice.
+        if (resource.id === idToValidate) {
+          const validatedBy = resource.validatedBy || [];
+          const hasValidated = validatedBy.includes(user.uid);
+          const newValidatedBy = hasValidated
+            ? validatedBy.filter(uid => uid !== user.uid)
+            : [...validatedBy, user.uid];
 
-    // 1. Optimistic UI update (instant feedback)
-    setResources(prev => prev.map(r => {
-      if (r.id === resourceId) {
-        const newValidatedBy = hasValidated
-          ? validatedBy.filter(uid => uid !== user.uid)
-          : [...validatedBy, user.uid];
+          console.log("✅ Encontrado y actualizado:", resource.title);
 
-        return {
-          ...r,
-          validatedBy: newValidatedBy
-        };
-      }
-      return r;
-    }));
+          // Silent background update to Firebase
+          (async () => {
+            try {
+              if (hasValidated) {
+                await removeValidation(idToValidate, user.uid);
+              } else {
+                await addValidation(idToValidate, user.uid);
+              }
+            } catch (error) {
+              // Silent fail - AdBlocker or network errors don't break UI
+            }
+          })();
 
-    // 2. Silent background update to Firebase
-    try {
-      if (hasValidated) {
-        await removeValidation(resourceId, user.uid);
-      } else {
-        await addValidation(resourceId, user.uid);
-      }
-    } catch (error) {
-      // Silent fail - AdBlocker or network errors don't break UI
-    }
+          return { ...resource, validatedBy: newValidatedBy };
+        }
+        return resource;
+      });
+    });
   };
 
   const hasUserValidated = (resource) => {
@@ -874,34 +872,31 @@ export default function App() {
             )}
           </div>
         ) : (
-          filteredResources.map((resource, index) => {
-            // Capture resource in a const to avoid closure issues
-            const currentResource = resource;
-            const currentResourceId = resource.id;
-            const validationCount = currentResource.validatedBy?.length || 0;
-            const isValidatedByUser = hasUserValidated(currentResource);
+          filteredResources.map((resource) => {
+            const validationCount = resource.validatedBy?.length || 0;
+            const isValidatedByUser = hasUserValidated(resource);
 
             return (
               <div
-                key={currentResourceId}
+                key={resource.id}
                 className="bg-white rounded-2xl shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer relative overflow-hidden border border-slate-100"
-                onClick={() => handleCardClick(currentResource)}
+                onClick={() => handleCardClick(resource)}
               >
                 {/* Header - Thumbnail or Gradient */}
                 <div className={`w-full h-48 relative flex items-center justify-center overflow-hidden ${
-                  currentResource.thumbnailUrl ? '' : `bg-gradient-to-br ${getGradient(currentResourceId)}`
+                  resource.thumbnailUrl ? '' : `bg-gradient-to-br ${getGradient(resource.id)}`
                 }`}>
-                  {currentResource.thumbnailUrl ? (
+                  {resource.thumbnailUrl ? (
                     <img
-                      src={currentResource.thumbnailUrl}
-                      alt={currentResource.title}
+                      src={resource.thumbnailUrl}
+                      alt={resource.title}
                       className="w-full h-full object-cover block"
                       style={{ objectPosition: 'center top' }}
                     />
-                  ) : currentResource.avatarUrl ? (
+                  ) : resource.avatarUrl ? (
                     <img
-                      src={currentResource.avatarUrl}
-                      alt={currentResource.title}
+                      src={resource.avatarUrl}
+                      alt={resource.title}
                       className="w-16 h-16 drop-shadow-lg"
                     />
                   ) : (
@@ -911,14 +906,14 @@ export default function App() {
                   {/* Top-left bookmark button */}
                   {user && (
                     <button
-                      onClick={(e) => handleToggleFavorite(e, currentResourceId)}
+                      onClick={(e) => handleToggleFavorite(e, resource.id)}
                       className="absolute top-3 left-3 p-2 bg-white/95 rounded-full hover:bg-indigo-50 transition shadow-sm z-10"
-                      title={userFavorites.includes(currentResourceId) ? "Quitar de guardados" : "Guardar para después"}
+                      title={userFavorites.includes(resource.id) ? "Quitar de guardados" : "Guardar para después"}
                     >
                       <Bookmark
                         size={18}
                         className={`transition-all ${
-                          userFavorites.includes(currentResourceId)
+                          userFavorites.includes(resource.id)
                             ? 'fill-indigo-600 text-indigo-600'
                             : 'text-slate-600'
                         }`}
@@ -929,12 +924,12 @@ export default function App() {
                   {/* Top-right badges/buttons */}
                   <div className="absolute top-3 right-3 flex gap-2 z-10">
                     {/* Preview button (Eye overlay) */}
-                    {currentResource.previewUrls && currentResource.previewUrls.length > 0 && (
+                    {resource.previewUrls && resource.previewUrls.length > 0 && (
                       <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          loadPdfPreview(currentResource);
+                          loadPdfPreview(resource);
                         }}
                         className="p-2 bg-black/50 hover:bg-black/70 rounded-full transition shadow-sm group"
                         title="Vista rápida"
@@ -948,9 +943,9 @@ export default function App() {
                         Login requerido
                       </div>
                     )}
-                    {user && user.uid === currentResource.userId && (
+                    {user && user.uid === resource.userId && (
                       <button
-                        onClick={(e) => handleDeleteResource(e, currentResource)}
+                        onClick={(e) => handleDeleteResource(e, resource)}
                         className="p-2 bg-white/95 text-red-600 rounded-full hover:bg-red-50 transition shadow-sm"
                         title="Eliminar recurso"
                       >
@@ -963,24 +958,24 @@ export default function App() {
                 {/* Card Content */}
                 <div className="p-6">
                   {/* Title */}
-                  <h3 className="font-bold text-xl text-slate-900 mb-2 line-clamp-2">{currentResource.title}</h3>
+                  <h3 className="font-bold text-xl text-slate-900 mb-2 line-clamp-2">{resource.title}</h3>
 
                   {/* Description */}
-                  {currentResource.description && (
+                  {resource.description && (
                     <p className="text-sm text-slate-600 mb-3 line-clamp-2 leading-relaxed">
-                      {currentResource.description}
+                      {resource.description}
                     </p>
                   )}
 
                   {/* Badges: Category and AI Model */}
                   <div className="mb-4 flex flex-wrap gap-2">
-                    {currentResource.category && (
-                      <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${getCategoryColor(currentResource.category)}`}>
-                        {currentResource.category}
+                    {resource.category && (
+                      <span className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${getCategoryColor(resource.category)}`}>
+                        {resource.category}
                       </span>
                     )}
                     <span className="inline-block px-3 py-1 bg-slate-100 text-slate-700 text-xs font-medium rounded-full">
-                      {currentResource.aiModel || 'NotebookLM'}
+                      {resource.aiModel || 'NotebookLM'}
                     </span>
                   </div>
 
@@ -991,7 +986,7 @@ export default function App() {
                         onClick={(e) => {
                           e.stopPropagation();
                           e.preventDefault();
-                          handleToggleValidation(currentResourceId);
+                          handleToggleValidation(resource.id);
                         }}
                         className={`w-full py-2.5 px-4 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                           isValidatedByUser
@@ -1017,16 +1012,16 @@ export default function App() {
                   <div className="pt-4 border-t border-slate-100">
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm text-slate-600 font-medium truncate">
-                        {currentResource.author}
+                        {resource.author}
                       </span>
                       <div className="flex gap-1.5 items-center text-slate-500">
                         <Download size={16} />
-                        <span className="text-sm font-semibold">{currentResource.downloads}</span>
+                        <span className="text-sm font-semibold">{resource.downloads}</span>
                       </div>
                     </div>
                     {/* Copyright Report Link */}
                     <a
-                      href={`mailto:soporte@synapse.app?subject=Reporte%20Copyright%20-%20ID%3A%20${currentResourceId}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20posible%20infracción%20de%20copyright%3A%0A%0AID%20del%20Recurso%3A%20${currentResourceId}%0ATítulo%3A%20${encodeURIComponent(currentResource.title)}%0AAutor%3A%20${encodeURIComponent(currentResource.author)}%0A%0AMotivo%20del%20reporte%3A%0A%0A%0A%0AFirma%3A%0A`}
+                      href={`mailto:soporte@synapse.app?subject=Reporte%20Copyright%20-%20ID%3A%20${resource.id}&body=Hola%2C%0A%0AQuiero%20reportar%20el%20siguiente%20recurso%20por%20posible%20infracción%20de%20copyright%3A%0A%0AID%20del%20Recurso%3A%20${resource.id}%0ATítulo%3A%20${encodeURIComponent(resource.title)}%0AAutor%3A%20${encodeURIComponent(resource.author)}%0A%0AMotivo%20del%20reporte%3A%0A%0A%0A%0AFirma%3A%0A`}
                       onClick={(e) => e.stopPropagation()}
                       className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600 transition-colors mt-1"
                       title="Reportar infracción de copyright"
