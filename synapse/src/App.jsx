@@ -165,12 +165,12 @@ const ResourceCard = memo(function ResourceCard({
               }`}
             >
               <Check size={18} className={isValidatedByUser ? 'stroke-2' : ''} />
-              {isValidatedByUser ? 'Validado por ti' : 'Validar utilidad'}
+              {isValidatedByUser ? '✅ Voto registrado' : '¿Te fue útil? 👍'}
             </button>
           ) : (
             <div className="py-2.5 px-4 bg-slate-50 rounded-lg text-center text-sm text-slate-500">
               <Check size={18} className="inline mr-2" />
-              Inicia sesión para validar
+              Inicia sesión para votar
             </div>
           )}
           <p className="text-xs text-slate-600 mt-2 text-center">
@@ -903,7 +903,7 @@ export default function App() {
                   <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-lg">
                     <Zap size={16} className="fill-current" />
                     <span className="text-sm font-bold">
-                      PRO - Descargas Ilimitadas
+                      PRO · Sin límites
                     </span>
                   </div>
                 )}
@@ -921,7 +921,7 @@ export default function App() {
                   onClick={() => setShowUploadModal(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition"
                 >
-                  <Upload size={18} /> Subir PDF
+                  <Upload size={18} /> Comparte un hallazgo
                 </button>
                 <div className="flex items-center gap-3">
                   {user.photoURL ? (
@@ -1021,7 +1021,7 @@ export default function App() {
               }`}
             >
               <Bookmark size={20} className={showOnlyFavorites ? 'fill-white' : ''} />
-              {showOnlyFavorites ? 'Mostrando guardados' : 'Ver mis guardados'}
+              {showOnlyFavorites ? 'Mi Biblioteca' : 'Mi Biblioteca'}
               {/* Contador usa validFavorites (solo IDs que existen en resources) */}
               {validFavorites.length > 0 && (
                 <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -1195,7 +1195,7 @@ export default function App() {
                       className="px-8 py-3 bg-indigo-600 text-white rounded-full font-bold hover:bg-indigo-700 transition inline-flex items-center gap-2"
                     >
                       <Download size={20} />
-                      Descargar Documento
+                      Descargar PDF Gratis
                     </button>
                   </div>
                 </div>
