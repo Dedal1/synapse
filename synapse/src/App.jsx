@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { flushSync } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings, Flag } from 'lucide-react';
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
@@ -208,6 +208,7 @@ const ResourceCard = memo(function ResourceCard({
 
 export default function App() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [user, setUser] = useState(null);
   const [resources, setResources] = useState([]);
@@ -397,18 +398,42 @@ export default function App() {
     loadDownloadCount();
   }, [user]);
 
+  // Sync download count when location changes (user navigates back to home)
+  useEffect(() => {
+    const saved = localStorage.getItem('synapse_downloads_count');
+    const count = saved ? parseInt(saved, 10) : 0;
+    console.log('[App.jsx] Location changed, syncing download count:', count);
+    setDownloadsCount(count);
+  }, [location]);
+
   // Listen for download count changes from ResourcePage to sync badge
   useEffect(() => {
     const handleDownloadCountChange = (e) => {
       const newCount = e.detail.count;
+      console.log('[App.jsx] Download count updated via CustomEvent:', newCount);
       setDownloadsCount(newCount);
+    };
+
+    const syncDownloadCount = () => {
+      const saved = localStorage.getItem('synapse_downloads_count');
+      const count = saved ? parseInt(saved, 10) : 0;
+      console.log('[App.jsx] Syncing download count from localStorage:', count);
+      setDownloadsCount(count);
     };
 
     // Listen for custom event (works in same tab)
     window.addEventListener('downloadCountChanged', handleDownloadCountChange);
 
+    // Sync when page becomes visible (user navigates back)
+    window.addEventListener('focus', syncDownloadCount);
+
+    // Sync on popstate (browser back button)
+    window.addEventListener('popstate', syncDownloadCount);
+
     return () => {
       window.removeEventListener('downloadCountChanged', handleDownloadCountChange);
+      window.removeEventListener('focus', syncDownloadCount);
+      window.removeEventListener('popstate', syncDownloadCount);
     };
   }, []);
 

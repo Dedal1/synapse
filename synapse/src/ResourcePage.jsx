@@ -190,6 +190,7 @@ function ResourcePage() {
         localStorage.setItem('synapse_downloads_count', newCount.toString());
 
         // Dispatch custom event to notify App.jsx (works in same tab)
+        console.log('[ResourcePage] Dispatching downloadCountChanged event:', newCount);
         window.dispatchEvent(new CustomEvent('downloadCountChanged', {
           detail: { count: newCount }
         }));
