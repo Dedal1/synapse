@@ -12,6 +12,7 @@
   "dependencies": {
     "@stripe/stripe-js": "^8.6.1",
     "@tailwindcss/postcss": "^4.1.18",
+    "@vercel/analytics": "^1.6.1",
     "firebase": "^12.7.0",
     "lucide-react": "^0.562.0",
     "pdfjs-dist": "^5.4.530",
