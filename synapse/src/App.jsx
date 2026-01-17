@@ -397,20 +397,18 @@ export default function App() {
     loadDownloadCount();
   }, [user]);
 
-  // Listen for localStorage changes from ResourcePage to sync badge
+  // Listen for download count changes from ResourcePage to sync badge
   useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'synapse_downloads_count' && e.newValue !== null) {
-        const newCount = parseInt(e.newValue, 10);
-        setDownloadsCount(newCount);
-      }
+    const handleDownloadCountChange = (e) => {
+      const newCount = e.detail.count;
+      setDownloadsCount(newCount);
     };
 
-    // Listen for storage events (cross-tab and custom events)
-    window.addEventListener('storage', handleStorageChange);
+    // Listen for custom event (works in same tab)
+    window.addEventListener('downloadCountChanged', handleDownloadCountChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('downloadCountChanged', handleDownloadCountChange);
     };
   }, []);
 

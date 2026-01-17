@@ -189,11 +189,9 @@ function ResourcePage() {
         // UPDATE LOCALSTORAGE FOR APP.JSX BADGE SYNC
         localStorage.setItem('synapse_downloads_count', newCount.toString());
 
-        // Dispatch custom event to notify App.jsx of the change
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: 'synapse_downloads_count',
-          newValue: newCount.toString(),
-          storageArea: localStorage
+        // Dispatch custom event to notify App.jsx (works in same tab)
+        window.dispatchEvent(new CustomEvent('downloadCountChanged', {
+          detail: { count: newCount }
         }));
 
         const remaining = FREE_LIMIT - newCount;
