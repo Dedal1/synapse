@@ -178,19 +178,40 @@ function ResourcePage() {
           return;
         }
 
-        await incrementUserDownloadCount(user.uid);
-        setUserDownloadCount(prev => prev + 1);
+        // CRITICAL: Open PDF FIRST before any blocking operations
+        window.open(resource.fileUrl, '_blank');
 
-        const remaining = FREE_LIMIT - userDownloadCount - 1;
+        // Increment download count
+        await incrementUserDownloadCount(user.uid);
+        const newCount = userDownloadCount + 1;
+        setUserDownloadCount(newCount);
+
+        // UPDATE LOCALSTORAGE FOR APP.JSX BADGE SYNC
+        localStorage.setItem('synapse_downloads_count', newCount.toString());
+
+        // Dispatch custom event to notify App.jsx of the change
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'synapse_downloads_count',
+          newValue: newCount.toString(),
+          storageArea: localStorage
+        }));
+
+        const remaining = FREE_LIMIT - newCount;
         if (remaining > 0) {
-          alert(`Descarga iniciada. Te quedan ${remaining} descargas gratuitas este mes.`);
+          setTimeout(() => {
+            alert(`✅ Descarga iniciada. Te quedan ${remaining} descargas gratuitas este mes.`);
+          }, 100);
         } else {
-          alert('Esta fue tu última descarga gratuita del mes. Actualiza a PRO para descargas ilimitadas.');
+          setTimeout(() => {
+            alert('¡Has alcanzado tu límite de descargas gratuitas! 🎯\n\nHazte PRO para disfrutar de descargas ilimitadas y apoyar la comunidad.');
+          }, 100);
         }
+      } else {
+        // PRO users: just open the PDF
+        window.open(resource.fileUrl, '_blank');
       }
 
       await incrementDownloads(resource.id);
-      window.open(resource.fileUrl, '_blank');
     } catch (error) {
       console.error("Error downloading:", error);
       alert('Error al descargar el recurso');
@@ -640,7 +661,7 @@ function ResourcePage() {
               }}
               className="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg"
             >
-              Actualizar a PRO - 9.99€/mes
+              Actualizar a PRO - 4.99€/mes
             </button>
 
             <button

@@ -397,6 +397,23 @@ export default function App() {
     loadDownloadCount();
   }, [user]);
 
+  // Listen for localStorage changes from ResourcePage to sync badge
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'synapse_downloads_count' && e.newValue !== null) {
+        const newCount = parseInt(e.newValue, 10);
+        setDownloadsCount(newCount);
+      }
+    };
+
+    // Listen for storage events (cross-tab and custom events)
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   // Handle scroll for "Back to Top" button
   useEffect(() => {
     const handleScroll = () => {
