@@ -379,7 +379,7 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Load user download count
+  // Load user download count from Firebase and sync with header
   useEffect(() => {
     if (!user) {
       setUserDownloadCount(0);
@@ -390,6 +390,10 @@ export default function App() {
       try {
         const count = await getUserDownloadCount(user.uid);
         setUserDownloadCount(count);
+        // FIX: Sync Firebase count with header's downloadsCount and localStorage
+        setDownloadsCount(count);
+        localStorage.setItem('synapse_downloads_count', count.toString());
+        console.log('[App.jsx] Synced download count from Firebase:', count);
       } catch (error) {
         console.error("Error loading download count:", error);
       }
@@ -781,6 +785,9 @@ export default function App() {
       // Save to localStorage
       localStorage.setItem('synapse_downloads_count', newCount.toString());
 
+      // FIX: Increment user download count in Firebase (was missing!)
+      incrementUserDownloadCount(user.uid).catch(console.error);
+
       // Close modal AFTER state update
       setShowPreviewModal(false);
       setSelectedResource(null);
@@ -980,12 +987,18 @@ export default function App() {
 
                 {/* Download counter for free users - Color coded based on usage */}
                 {!(user.isPro || false) && (
-                  <div className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-full border ${
+                  <button
+                    onClick={() => {
+                      if (downloadsCount >= MAX_DOWNLOADS) {
+                        setShowLimitModal(true);
+                      }
+                    }}
+                    className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-full border transition ${
                     downloadsCount >= MAX_DOWNLOADS
-                      ? 'bg-red-100 text-red-800 border-red-200'
+                      ? 'bg-red-100 text-red-800 border-red-200 cursor-pointer hover:bg-red-200'
                       : downloadsCount >= 3
-                      ? 'bg-orange-100 text-orange-800 border-orange-200'
-                      : 'bg-green-100 text-green-800 border-green-200'
+                      ? 'bg-orange-100 text-orange-800 border-orange-200 cursor-default'
+                      : 'bg-green-100 text-green-800 border-green-200 cursor-default'
                   }`}>
                     <Download size={16} />
                     <span className="text-sm font-semibold">
@@ -995,7 +1008,7 @@ export default function App() {
                         ? `Te quedan ${MAX_DOWNLOADS - downloadsCount}`
                         : `${MAX_DOWNLOADS - downloadsCount} descargas disponibles`}
                     </span>
-                  </div>
+                  </button>
                 )}
                 <button
                   onClick={() => setShowUploadModal(true)}
