@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings, Flag } from 'lucide-react';
@@ -213,6 +214,11 @@ export default function App() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [downloadsCount, setDownloadsCount] = useState(() => {
+    // Inicializar desde localStorage
+    const saved = localStorage.getItem('synapse_downloads_count');
+    return saved ? parseInt(saved, 10) : 0;
+  });
   const [selectedResource, setSelectedResource] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -239,6 +245,7 @@ export default function App() {
   const [showCookieBanner, setShowCookieBanner] = useState(true);
 
   const FREE_LIMIT = 5;
+  const MAX_DOWNLOADS = 5;
   const SOURCE_MAX_LENGTH = 280;
   const rotatingWords = ['descubrir', 'validar', 'compartir'];
 
@@ -345,6 +352,7 @@ export default function App() {
       setShowCookieBanner(false);
     }
   }, []);
+
 
   const handleCloseCookieBanner = () => {
     localStorage.setItem('cookiesAccepted', 'true');
@@ -707,38 +715,59 @@ export default function App() {
 
     if (!selectedResource) return;
 
-    try {
-      // Check if user is PRO (for future implementation)
-      const isPro = user.isPro || false; // TODO: Implement PRO status in Firebase
+    // Capture resource before closing modal
+    const resourceToDownload = selectedResource;
+    const isPro = user.isPro || false;
 
-      if (!isPro) {
-        // Check download limit for free users
-        if (userDownloadCount >= FREE_LIMIT) {
-          setShowLimitModal(true);
-          return;
-        }
+    // Check download limit for free users
+    if (!isPro && downloadsCount >= MAX_DOWNLOADS) {
+      setShowLimitModal(true);
+      return;
+    }
 
-        // Increment user download count
-        await incrementUserDownloadCount(user.uid);
-        setUserDownloadCount(prev => prev + 1);
+    // CRITICAL: Open PDF FIRST (before any async operations)
+    window.open(resourceToDownload.fileUrl, '_blank');
 
-        // Show remaining downloads toast
-        const remaining = FREE_LIMIT - userDownloadCount - 1;
-        if (remaining > 0) {
-          alert(`Descarga iniciada. Te quedan ${remaining} descargas gratuitas este mes.`);
-        } else {
-          alert('Esta fue tu última descarga gratuita del mes. Actualiza a PRO para descargas ilimitadas.');
-        }
+    // Update download count for free users BEFORE closing modal
+    if (!isPro) {
+      // Calculate new count
+      const newCount = downloadsCount + 1;
+
+      // FORCE SYNCHRONOUS state update using flushSync
+      flushSync(() => {
+        setDownloadsCount(newCount);
+      });
+
+      // Save to localStorage
+      localStorage.setItem('synapse_downloads_count', newCount.toString());
+
+      // Close modal AFTER state update
+      setShowPreviewModal(false);
+      setSelectedResource(null);
+
+      // Increment Firebase download count for resource (background)
+      incrementDownloads(resourceToDownload.id).catch(console.error);
+
+      // Update resources list (background)
+      loadResources().catch(console.error);
+
+      // Show notification AFTER state update
+      const remaining = MAX_DOWNLOADS - newCount;
+      if (remaining > 0) {
+        setTimeout(() => {
+          alert(`✅ Descarga iniciada. Te quedan ${remaining} descargas gratuitas.`);
+        }, 100);
+      } else {
+        setTimeout(() => {
+          alert('¡Has alcanzado tu límite de descargas gratuitas! 🎯\n\nHazte PRO para disfrutar de descargas ilimitadas y apoyar la comunidad.');
+        }, 100);
       }
-
-      // Proceed with download
-      await incrementDownloads(selectedResource.id);
-      window.open(selectedResource.fileUrl, '_blank');
-      await loadResources();
-      setSelectedResource(null); // Cerrar modal después de descargar
-    } catch (error) {
-      console.error("Error downloading:", error);
-      alert('Error al descargar el recurso');
+    } else {
+      // PRO users: only increment resource download count
+      setShowPreviewModal(false);
+      setSelectedResource(null);
+      incrementDownloads(resourceToDownload.id).catch(console.error);
+      loadResources().catch(console.error);
     }
   };
 
@@ -834,6 +863,7 @@ export default function App() {
     }
   };
 
+
   // =====================================================
   // FIX BUG MARCADORES: Solo contar favoritos que existen en resources
   // Esto evita el "fantasma" de favoritos huérfanos en Firebase
@@ -908,12 +938,22 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Download counter for free users */}
+                {/* Download counter for free users - Color coded based on usage */}
                 {!(user.isPro || false) && (
-                  <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
+                  <div className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-full border ${
+                    downloadsCount >= MAX_DOWNLOADS
+                      ? 'bg-red-100 text-red-800 border-red-200'
+                      : downloadsCount >= 3
+                      ? 'bg-orange-100 text-orange-800 border-orange-200'
+                      : 'bg-green-100 text-green-800 border-green-200'
+                  }`}>
                     <Download size={16} />
                     <span className="text-sm font-semibold">
-                      Descargas: {userDownloadCount}/{FREE_LIMIT}
+                      {downloadsCount >= MAX_DOWNLOADS
+                        ? 'Hazte PRO para seguir'
+                        : downloadsCount >= 3
+                        ? `Te quedan ${MAX_DOWNLOADS - downloadsCount}`
+                        : `${MAX_DOWNLOADS - downloadsCount} descargas disponibles`}
                     </span>
                   </div>
                 )}
@@ -1254,7 +1294,7 @@ export default function App() {
               onClick={handleUpgradeToPro}
               className="w-full py-4 px-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg"
             >
-              Actualizar a PRO - 9.99€/mes
+              Actualizar a PRO - 4.99€/mes
             </button>
 
             <button
