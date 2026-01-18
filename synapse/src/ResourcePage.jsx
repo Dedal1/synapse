@@ -346,14 +346,14 @@ function ResourcePage() {
         {/* Back Button - Floating */}
         <button
           onClick={() => navigate('/')}
-          className="absolute top-6 left-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md text-white hover:bg-white/20 rounded-full transition border border-white/20"
+          className="absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md text-white hover:bg-white/20 rounded-full transition border border-white/20"
         >
           <ArrowLeft size={20} />
           <span className="hidden sm:inline">Volver</span>
         </button>
 
         {/* Synapse Logo - Floating */}
-        <div className="absolute top-6 right-6 z-20 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
+        <div className="absolute top-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20">
           <div className="bg-white/20 p-1.5 rounded-lg">
             <Zap className="text-white" size={18} />
           </div>
@@ -361,13 +361,13 @@ function ResourcePage() {
         </div>
 
         {/* Hero Content */}
-        <div className="relative z-[15] h-full flex flex-col items-center justify-center px-4 text-center">
-          <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-6 leading-tight max-w-4xl drop-shadow-2xl">
+        <div className="relative z-[15] h-full flex flex-col items-center justify-center px-4 text-center pt-20 md:pt-0">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-extrabold text-white mb-4 md:mb-6 leading-tight max-w-4xl drop-shadow-2xl">
             {resource.title}
           </h1>
 
           {resource.description && (
-            <p className="text-xl text-white/90 mb-8 max-w-2xl leading-relaxed drop-shadow-lg">
+            <p className="text-base md:text-xl text-white/90 mb-4 md:mb-8 max-w-2xl leading-relaxed drop-shadow-lg px-2">
               {resource.description}
             </p>
           )}

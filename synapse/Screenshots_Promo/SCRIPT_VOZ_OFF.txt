@@ -1,0 +1,102 @@
+═══════════════════════════════════════════════════════════════
+        SCRIPT DE VOZ EN OFF - VIDEO SYNAPSE
+        Duración: 22 segundos | Idioma: Español
+═══════════════════════════════════════════════════════════════
+
+INSTRUCCIONES PARA GRABACIÓN:
+- Tono: Natural, conversacional, como hablando a un amigo
+- Ritmo: Energético pero no forzado
+- Emoción: Frustración al inicio → Entusiasmo en la solución → Confianza en el CTA
+
+
+───────────────────────────────────────────────────────────────
+TOMA 1 - HOOK (0-3 segundos)
+───────────────────────────────────────────────────────────────
+
+"¿Otra vez regenerando el mismo prompt
+porque el resultado de la IA era basura?"
+
+[ÉNFASIS en "otra vez" y "basura"]
+[Tono: Frustración identificable]
+
+
+───────────────────────────────────────────────────────────────
+TOMA 2 - PROBLEMA (3-7 segundos)
+───────────────────────────────────────────────────────────────
+
+"Todos hemos perdido HORAS haciendo
+que ChatGPT nos dé algo útil..."
+
+[ÉNFASIS en "HORAS"]
+[Tono: Empatía, "te entiendo"]
+
+
+───────────────────────────────────────────────────────────────
+TOMA 3 - SOLUCIÓN (7-12 segundos)
+───────────────────────────────────────────────────────────────
+
+"Synapse es la biblioteca donde la gente comparte
+sus mejores resúmenes de IA -
+ya verificados, ya validados."
+
+[Pronunciar SYNAPSE claro: "SÍ-naps"]
+[ÉNFASIS en "verificados" y "validados"]
+[Tono: Revelación, como contar un secreto]
+
+
+───────────────────────────────────────────────────────────────
+TOMA 4 - BENEFICIO (12-17 segundos)
+───────────────────────────────────────────────────────────────
+
+"Educación, negocios, tecnología...
+descargas el PDF y listo.
+Sin regenerar nada."
+
+[Listar categorías rápido pero claro]
+[ÉNFASIS en "listo" y "Sin regenerar nada"]
+[Tono: Satisfacción]
+
+
+───────────────────────────────────────────────────────────────
+TOMA 5 - CTA (17-22 segundos)
+───────────────────────────────────────────────────────────────
+
+"Link en bio - es gratis.
+Deja de perder tiempo."
+
+[ÉNFASIS en "gratis"]
+[Tono: Directo, confiado, urgencia suave]
+[Terminar con energía, no dejar caer la voz]
+
+
+═══════════════════════════════════════════════════════════════
+VERSIONES ALTERNATIVAS
+═══════════════════════════════════════════════════════════════
+
+HOOK ALTERNATIVO A (Más agresivo):
+"Deja de tirar horas a la basura regenerando prompts."
+
+HOOK ALTERNATIVO B (Curiosidad):
+"Encontré una biblioteca secreta de PDFs de IA que nadie conoce..."
+
+HOOK ALTERNATIVO C (Social proof):
+"Miles de estudiantes ya usan esto para ahorrar tiempo..."
+
+
+═══════════════════════════════════════════════════════════════
+NOTAS DE PRODUCCIÓN
+═══════════════════════════════════════════════════════════════
+
+• Grabar en espacio silencioso
+• Micrófono cerca (20-30cm)
+• Grabar cada sección 3 veces para tener opciones
+• Tempo: ~150 palabras/minuto
+• Si usas app de grabación: 44.1kHz, formato WAV
+
+APPS RECOMENDADAS:
+- iPhone: Voice Memos (nativo)
+- Android: Easy Voice Recorder
+- PC: Audacity (gratis)
+- Pro: Adobe Podcast (limpia audio automáticamente)
+
+═══════════════════════════════════════════════════════════════

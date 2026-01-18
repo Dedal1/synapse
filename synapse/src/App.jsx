@@ -1012,9 +1012,10 @@ export default function App() {
                 )}
                 <button
                   onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition"
+                  className="flex items-center gap-2 px-3 md:px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition"
                 >
-                  <Upload size={18} /> Comparte un hallazgo
+                  <Upload size={18} />
+                  <span className="hidden md:inline">Comparte un hallazgo</span>
                 </button>
                 <div className="flex items-center gap-3">
                   {user.photoURL ? (
