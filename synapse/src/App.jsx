@@ -6,6 +6,7 @@ import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookma
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
+import CookieBanner from './CookieBanner';
 
 // Configure PDF.js worker - Use local worker for reliability with Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -1651,6 +1652,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Cookie Consent Banner - GDPR */}
+      <CookieBanner />
     </div>
   );
 }

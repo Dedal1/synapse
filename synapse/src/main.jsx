@@ -7,6 +7,7 @@ import './index.css'
 import App from './App.jsx'
 import Success from './Success.jsx'
 import ResourcePage from './ResourcePage.jsx'
+import PrivacyPolicy from './PrivacyPolicy.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/" element={<App />} />
           <Route path="/resource/:id" element={<ResourcePage />} />
           <Route path="/success" element={<Success />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
         </Routes>
         <Analytics />
       </BrowserRouter>
