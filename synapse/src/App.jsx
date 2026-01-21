@@ -1187,9 +1187,29 @@ export default function App() {
                   Explorar recursos
                 </button>
               </div>
+            ) : searchTerm ? (
+              /* Empty State - Sin resultados de búsqueda */
+              <div className="flex flex-col items-center gap-4">
+                <div className="text-6xl">🔍</div>
+                <p className="text-xl text-slate-700 font-medium text-center">
+                  Vaya, no hemos encontrado nada sobre "<span className="text-indigo-600">{searchTerm}</span>"
+                </p>
+                <p className="text-slate-500 text-center">
+                  ¿Crees que falta este tema en la biblioteca?
+                </p>
+                <a
+                  href={`mailto:synapse.app.contact@proton.me?subject=Solicitud de recurso: ${encodeURIComponent(searchTerm)}&body=Hola, me gustaría solicitar un recurso sobre: ${encodeURIComponent(searchTerm)}`}
+                  className="mt-2 px-6 py-3 border-2 border-indigo-600 text-indigo-600 rounded-full font-semibold hover:bg-indigo-50 transition-all duration-200 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Solicitar este Recurso
+                </a>
+              </div>
             ) : (
               <p className="text-slate-500">
-                {searchTerm ? 'No se encontraron resultados' : 'No hay recursos aún. ¡Sé el primero en compartir!'}
+                No hay recursos aún. ¡Sé el primero en compartir!
               </p>
             )}
           </div>
