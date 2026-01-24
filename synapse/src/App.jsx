@@ -976,7 +976,7 @@ export default function App() {
           </div>
 
           {/* Right side actions */}
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
             {user ? (
               <>
                 {/* PRO badge - Desktop only */}
@@ -1014,27 +1014,33 @@ export default function App() {
                   </button>
                 )}
 
-                {/* Upload button - Icon only on mobile */}
+                {/* Upload button - PRIMARY ACTION: Highlighted on mobile */}
                 <button
                   onClick={() => setShowUploadModal(true)}
-                  className="flex items-center justify-center gap-2 p-2.5 md:px-4 md:py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition"
+                  className="flex items-center justify-center gap-2 min-w-[44px] min-h-[44px] p-3 md:px-4 md:py-2
+                             bg-indigo-600 md:bg-slate-900 text-white rounded-full
+                             hover:bg-indigo-700 md:hover:bg-slate-800
+                             active:scale-95 transition-all shadow-md md:shadow-none"
+                  title="Subir recurso"
                 >
-                  <Upload size={18} />
+                  <Upload size={20} className="md:w-[18px] md:h-[18px]" />
                   <span className="hidden md:inline">Comparte un hallazgo</span>
                 </button>
 
-                {/* Avatar */}
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName}
-                    className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-indigo-600"
-                  />
-                ) : (
-                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-indigo-600 bg-indigo-100 flex items-center justify-center">
-                    <User size={18} className="text-indigo-600" />
-                  </div>
-                )}
+                {/* Avatar - Touchable area */}
+                <div className="min-w-[44px] min-h-[44px] flex items-center justify-center">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName}
+                      className="w-10 h-10 md:w-10 md:h-10 rounded-full border-2 border-indigo-600"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full border-2 border-indigo-600 bg-indigo-100 flex items-center justify-center">
+                      <User size={20} className="text-indigo-600" />
+                    </div>
+                  )}
+                </div>
 
                 {/* Manage Subscription - Desktop only for PRO users */}
                 {(user.isPro || false) && (
@@ -1047,20 +1053,25 @@ export default function App() {
                   </button>
                 )}
 
-                {/* Logout button - Icon only on mobile, text on desktop */}
+                {/* Logout button - Larger touch area on mobile */}
                 <button
                   onClick={handleLogout}
-                  className="flex items-center justify-center p-2.5 md:p-0 rounded-full md:rounded-none bg-slate-100 md:bg-transparent hover:bg-slate-200 md:hover:bg-transparent transition"
+                  className="flex items-center justify-center min-w-[44px] min-h-[44px] p-3 md:p-0
+                             rounded-full md:rounded-none
+                             bg-slate-100 md:bg-transparent
+                             hover:bg-slate-200 md:hover:bg-transparent
+                             active:bg-slate-300 active:scale-95 md:active:scale-100
+                             transition-all"
                   title="Cerrar sesión"
                 >
-                  <LogOut size={18} className="text-slate-600 md:hidden" />
+                  <LogOut size={20} className="text-slate-600 md:hidden" />
                   <span className="hidden md:block text-sm text-slate-600 hover:text-slate-900">Salir</span>
                 </button>
               </>
             ) : (
               <button
                 onClick={handleLogin}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition text-sm md:text-base"
+                className="flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-slate-900 text-white rounded-full hover:bg-slate-800 active:scale-95 transition-all text-sm md:text-base"
               >
                 <User size={18} />
                 <span className="hidden sm:inline">Entrar con Google</span>
