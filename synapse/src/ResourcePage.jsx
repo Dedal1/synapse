@@ -57,12 +57,15 @@ function ResourcePage() {
 
           if (userDoc.exists()) {
             const userData = userDoc.data();
+            console.log('[Auth ResourcePage] Firestore userData:', userData);
+            console.log('[Auth ResourcePage] userData.isPro:', userData.isPro);
             setUser({
               ...currentUser,
               isPro: userData.isPro || false,
               upgradedAt: userData.upgradedAt,
             });
           } else {
+            console.log('[Auth ResourcePage] No Firestore document found for user');
             setUser({
               ...currentUser,
               isPro: false,
@@ -170,7 +173,37 @@ function ResourcePage() {
     }
 
     try {
-      const isPro = user.isPro || false;
+      // DEBUG: Log user PRO status
+      console.log('[Download] User object:', user);
+      console.log('[Download] user.isPro:', user.isPro);
+
+      // FIX: Re-check PRO status from Firestore if not set (handles race condition)
+      let isPro = user.isPro || false;
+
+      if (!isPro && user.uid) {
+        console.log('[Download] isPro is false, re-checking Firestore...');
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const { db } = await import('./firebase');
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            console.log('[Download] Firestore re-check - userData:', userData);
+            isPro = userData.isPro || false;
+
+            // Update local state if PRO status found
+            if (isPro) {
+              console.log('[Download] User IS PRO! Updating state...');
+              setUser(prev => ({ ...prev, isPro: true, upgradedAt: userData.upgradedAt }));
+            }
+          }
+        } catch (firestoreError) {
+          console.error('[Download] Firestore re-check failed:', firestoreError);
+        }
+      }
+
+      console.log('[Download] isPro (final resolved):', isPro);
 
       if (!isPro) {
         if (userDownloadCount >= FREE_LIMIT) {
