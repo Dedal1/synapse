@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, memo } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings, Flag } from 'lucide-react';
+import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings, Flag, LogOut } from 'lucide-react';
 import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -957,7 +957,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans overflow-x-hidden">
       {/* SEO - Default Meta Tags for Home */}
       <Helmet>
         <title>Synapse | Tu Biblioteca de IA</title>
@@ -967,26 +967,27 @@ export default function App() {
       {/* Navbar */}
       <nav className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+          {/* Logo */}
           <div className="flex items-center gap-2">
             <div className="bg-indigo-600 p-2 rounded-lg">
               <Zap className="text-white" size={20} />
             </div>
             <span className="text-xl font-bold">Synapse</span>
           </div>
-          <div className="flex gap-4 items-center">
+
+          {/* Right side actions */}
+          <div className="flex items-center gap-2 md:gap-4">
             {user ? (
               <>
-                {/* PRO badge for PRO users */}
+                {/* PRO badge - Desktop only */}
                 {(user.isPro || false) && (
                   <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-lg">
                     <Zap size={16} className="fill-current" />
-                    <span className="text-sm font-bold">
-                      PRO · Sin límites
-                    </span>
+                    <span className="text-sm font-bold">PRO · Sin límites</span>
                   </div>
                 )}
 
-                {/* Download counter for free users - Color coded based on usage */}
+                {/* Download counter - Desktop only */}
                 {!(user.isPro || false) && (
                   <button
                     onClick={() => {
@@ -995,12 +996,13 @@ export default function App() {
                       }
                     }}
                     className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-full border transition ${
-                    downloadsCount >= MAX_DOWNLOADS
-                      ? 'bg-red-100 text-red-800 border-red-200 cursor-pointer hover:bg-red-200'
-                      : downloadsCount >= 3
-                      ? 'bg-orange-100 text-orange-800 border-orange-200 cursor-default'
-                      : 'bg-green-100 text-green-800 border-green-200 cursor-default'
-                  }`}>
+                      downloadsCount >= MAX_DOWNLOADS
+                        ? 'bg-red-100 text-red-800 border-red-200 cursor-pointer hover:bg-red-200'
+                        : downloadsCount >= 3
+                        ? 'bg-orange-100 text-orange-800 border-orange-200 cursor-default'
+                        : 'bg-green-100 text-green-800 border-green-200 cursor-default'
+                    }`}
+                  >
                     <Download size={16} />
                     <span className="text-sm font-semibold">
                       {downloadsCount >= MAX_DOWNLOADS
@@ -1011,51 +1013,58 @@ export default function App() {
                     </span>
                   </button>
                 )}
+
+                {/* Upload button - Icon only on mobile */}
                 <button
                   onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 px-3 md:px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition"
+                  className="flex items-center justify-center gap-2 p-2.5 md:px-4 md:py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition"
                 >
                   <Upload size={18} />
                   <span className="hidden md:inline">Comparte un hallazgo</span>
                 </button>
-                <div className="flex items-center gap-3">
-                  {user.photoURL ? (
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName}
-                      className="w-10 h-10 rounded-full border-2 border-indigo-600"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full border-2 border-indigo-600 bg-indigo-100 flex items-center justify-center">
-                      <User size={20} className="text-indigo-600" />
-                    </div>
-                  )}
 
-                  {/* Manage Subscription button - Only for PRO users */}
-                  {(user.isPro || false) && (
-                    <button
-                      onClick={handleManageSubscription}
-                      className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-semibold transition"
-                    >
-                      <Settings size={16} />
-                      Gestionar Suscripción
-                    </button>
-                  )}
+                {/* Avatar */}
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName}
+                    className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-indigo-600"
+                  />
+                ) : (
+                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-indigo-600 bg-indigo-100 flex items-center justify-center">
+                    <User size={18} className="text-indigo-600" />
+                  </div>
+                )}
 
+                {/* Manage Subscription - Desktop only for PRO users */}
+                {(user.isPro || false) && (
                   <button
-                    onClick={handleLogout}
-                    className="text-sm text-slate-600 hover:text-slate-900"
+                    onClick={handleManageSubscription}
+                    className="hidden md:flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-semibold transition"
                   >
-                    Salir
+                    <Settings size={16} />
+                    Gestionar Suscripción
                   </button>
-                </div>
+                )}
+
+                {/* Logout button - Icon only on mobile, text on desktop */}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center justify-center p-2.5 md:p-0 rounded-full md:rounded-none bg-slate-100 md:bg-transparent hover:bg-slate-200 md:hover:bg-transparent transition"
+                  title="Cerrar sesión"
+                >
+                  <LogOut size={18} className="text-slate-600 md:hidden" />
+                  <span className="hidden md:block text-sm text-slate-600 hover:text-slate-900">Salir</span>
+                </button>
               </>
             ) : (
               <button
                 onClick={handleLogin}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition"
+                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-full hover:bg-slate-800 transition text-sm md:text-base"
               >
-                <User size={18} /> Entrar con Google
+                <User size={18} />
+                <span className="hidden sm:inline">Entrar con Google</span>
+                <span className="sm:hidden">Entrar</span>
               </button>
             )}
           </div>
