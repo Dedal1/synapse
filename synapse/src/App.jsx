@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
@@ -10,6 +10,359 @@ import CookieBanner from './CookieBanner';
 
 // Configure PDF.js worker - Use local worker for reliability with Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+// =====================================================
+// HERO SECTION - Memoizado para evitar re-renders costosos
+// Las tarjetas 3D NO se re-renderizan cuando se abre el modal
+// =====================================================
+const HeroSection = memo(function HeroSection({
+  resources,
+  searchTerm,
+  onSearchChange,
+  user,
+  onLogin,
+  showOnlyFavorites,
+  onToggleFavorites,
+  validFavorites,
+}) {
+  return (
+    <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
+
+      {/* Tech Grid Pattern - Subtle background texture */}
+      <div className="absolute inset-0">
+        {/* Primary grid - fine lines */}
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)
+          `,
+          backgroundSize: '40px 40px'
+        }} />
+        {/* Secondary grid - larger squares for depth */}
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            linear-gradient(rgba(99, 102, 241, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(99, 102, 241, 0.05) 1px, transparent 1px)
+          `,
+          backgroundSize: '120px 120px'
+        }} />
+      </div>
+
+      {/* Spotlight - Radial gradient behind cards (right side) */}
+      <div className="absolute top-1/2 right-[15%] -translate-y-1/2 w-[600px] h-[600px] hidden lg:block"
+           style={{
+             background: 'radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0.1) 30%, transparent 70%)'
+           }} />
+
+      {/* Secondary spotlight - purple accent */}
+      <div className="absolute top-1/3 right-[25%] w-[400px] h-[400px] hidden lg:block"
+           style={{
+             background: 'radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 60%)'
+           }} />
+
+      {/* Glowing Orbs - Ambient light (reduced for performance) */}
+      <div className="absolute top-20 left-10 w-72 h-72 bg-indigo-500 rounded-full filter blur-[120px] opacity-20" />
+      <div className="absolute bottom-20 right-20 w-80 h-80 bg-purple-600 rounded-full filter blur-[140px] opacity-15" />
+
+      {/* Content - Two Column Layout on Desktop */}
+      <div className="relative z-10 px-4 py-12 md:py-20">
+        <div className="max-w-7xl mx-auto">
+
+          {/* Desktop: Two Columns */}
+          <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
+
+            {/* LEFT COLUMN: Text Content */}
+            <div className="flex-1 text-center lg:text-left">
+              {/* Badge */}
+              <div className="flex justify-center lg:justify-start mb-6">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-sm text-indigo-200">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
+                  </span>
+                  {resources.length}+ recursos verificados
+                </div>
+              </div>
+
+              {/* Main Headline */}
+              <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-white mb-4 leading-tight">
+                No regeneres.{' '}
+                <span className="relative inline-block">
+                  <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    Comparte.
+                  </span>
+                  <svg className="absolute -bottom-1 md:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
+                    <path d="M2 10C50 4 150 4 198 10" stroke="url(#gradient-hero)" strokeWidth="3" strokeLinecap="round"/>
+                    <defs>
+                      <linearGradient id="gradient-hero" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#818cf8"/>
+                        <stop offset="50%" stopColor="#a78bfa"/>
+                        <stop offset="100%" stopColor="#f472b6"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </span>
+              </h1>
+
+              {/* Subtitle */}
+              <p className="text-lg md:text-xl text-slate-300 mb-6 max-w-xl mx-auto lg:mx-0">
+                La biblioteca de resúmenes de IA{' '}
+                <span className="text-green-400 font-semibold">verificados por humanos</span>.
+                Descarga apuntes que otros ya validaron por ti.
+              </p>
+
+              {/* Benefits Pills */}
+              <div className="flex flex-wrap justify-center lg:justify-start gap-2 mb-6">
+                <span className="px-3 py-1.5 bg-white/10 border border-white/20 rounded-full text-xs text-white flex items-center gap-1.5">
+                  <Check size={12} className="text-green-400" /> Fuentes citadas
+                </span>
+                <span className="px-3 py-1.5 bg-white/10 border border-white/20 rounded-full text-xs text-white flex items-center gap-1.5">
+                  <Check size={12} className="text-green-400" /> Votados por la comunidad
+                </span>
+                <span className="hidden sm:flex px-3 py-1.5 bg-white/10 border border-white/20 rounded-full text-xs text-white items-center gap-1.5">
+                  <Check size={12} className="text-green-400" /> Ahorra horas
+                </span>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative mb-6 max-w-lg mx-auto lg:mx-0">
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-300" />
+                  <div className="relative bg-slate-900 rounded-2xl">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <input
+                      className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl text-base text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      placeholder="Buscar resúmenes verificados..."
+                      value={searchTerm}
+                      onChange={(e) => onSearchChange(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* CTA Buttons */}
+              {!user && (
+                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 mb-6">
+                  <button
+                    onClick={onLogin}
+                    className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-base hover:from-indigo-500 hover:to-purple-500 transition-all duration-300 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 flex items-center justify-center gap-2"
+                  >
+                    <User size={18} />
+                    Empezar Gratis
+                  </button>
+                  <a
+                    href="#recursos"
+                    className="w-full sm:w-auto px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-full font-semibold text-base hover:bg-white/20 transition-all duration-300 text-center"
+                  >
+                    Explorar Biblioteca
+                  </a>
+                </div>
+              )}
+
+              {/* Favorites Filter - For logged users */}
+              {user && (
+                <div className="flex justify-center lg:justify-start mb-6">
+                  <button
+                    onClick={onToggleFavorites}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold transition-all duration-300 ${
+                      showOnlyFavorites
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
+                        : 'bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    <Bookmark size={18} className={showOnlyFavorites ? 'fill-white' : ''} />
+                    Mi Biblioteca
+                    {validFavorites.length > 0 && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        showOnlyFavorites ? 'bg-white/20' : 'bg-indigo-500/30 text-indigo-200'
+                      }`}>
+                        {validFavorites.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Social Proof */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 text-slate-400 text-sm">
+                <div className="flex items-center gap-2">
+                  <Download size={14} className="text-indigo-400" />
+                  <span>{resources.reduce((acc, r) => acc + (r.downloads || 0), 0)}+ descargas</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check size={14} className="text-green-400" />
+                  <span>{resources.reduce((acc, r) => acc + (r.validatedBy?.length || 0), 0)}+ validaciones</span>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: Giant Card Stack - Desktop */}
+            <div className="hidden lg:flex flex-1 relative h-[500px] items-center justify-center">
+              {/* Glow behind cards */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500 rounded-full filter blur-[100px] opacity-50" />
+
+              {/* Giant Stacked Cards - Deck Effect */}
+              <div className="relative w-[400px] h-[450px] group deck-container">
+
+                {/* Card 1 - Historia (Back of deck) */}
+                <div className="absolute inset-0 w-[320px] h-[400px] rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 cursor-pointer
+                                transition-all duration-500 ease-out origin-bottom
+                                group-hover:-translate-x-16 group-hover:-rotate-12
+                                hover:!scale-105 hover:!z-30 hover:!rotate-0 hover:!translate-x-0"
+                     style={{
+                       transform: 'rotate(-8deg) translateX(-20px)',
+                       zIndex: 1
+                     }}>
+                  <img
+                    src="/preview-historia.png"
+                    alt="Apuntes de Historia - La Constitución de 1812"
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  {/* Verified Badge */}
+                  <div className="absolute top-3 right-3 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                    <Check size={16} className="text-white" />
+                  </div>
+                  {/* Category Label */}
+                  <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full">
+                    <span className="text-white text-sm font-semibold">📜 Historia</span>
+                  </div>
+                </div>
+
+                {/* Card 2 - Bioquímica (Middle of deck) */}
+                <div className="absolute inset-0 w-[320px] h-[400px] rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 cursor-pointer
+                                transition-all duration-500 ease-out origin-bottom
+                                group-hover:translate-x-0 group-hover:rotate-0
+                                hover:!scale-105 hover:!z-30"
+                     style={{
+                       transform: 'rotate(0deg) translateX(20px) translateY(-10px)',
+                       zIndex: 2
+                     }}>
+                  <img
+                    src="/preview-bioquimica.png"
+                    alt="Apuntes de Bioquímica - Sistema Porta Hepático"
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute top-3 right-3 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                    <Check size={16} className="text-white" />
+                  </div>
+                  <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full">
+                    <span className="text-white text-sm font-semibold">🧬 Bioquímica</span>
+                  </div>
+                </div>
+
+                {/* Card 3 - Filosofía (Front of deck) */}
+                <div className="absolute inset-0 w-[320px] h-[400px] rounded-2xl shadow-2xl overflow-hidden border-2 border-white/30 cursor-pointer
+                                transition-all duration-500 ease-out origin-bottom
+                                group-hover:translate-x-16 group-hover:rotate-12
+                                hover:!scale-105 hover:!z-30 hover:!rotate-0 hover:!translate-x-0"
+                     style={{
+                       transform: 'rotate(6deg) translateX(60px) translateY(-20px)',
+                       zIndex: 3
+                     }}>
+                  <img
+                    src="/preview-filosofia.png"
+                    alt="Apuntes de Filosofía - Crítica a la Tradición Occidental"
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute top-3 right-3 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                    <Check size={16} className="text-white" />
+                  </div>
+                  <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full">
+                    <span className="text-white text-sm font-semibold">🏛️ Filosofía</span>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* MOBILE: Horizontal Scroll Cards - Peek effect */}
+            <div className="lg:hidden w-full mt-8 relative">
+              {/* Gradient fade on right edge to hint more content */}
+              <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-slate-900 to-transparent z-10 pointer-events-none" />
+
+              {/* Cards container - padding-right smaller to show peek of next card */}
+              <div className="flex gap-4 overflow-x-auto pb-4 pl-4 pr-2 snap-x snap-mandatory scrollbar-hide">
+
+                {/* Card 1 - Historia */}
+                <div className="flex-shrink-0 w-[75vw] max-w-[300px] snap-start">
+                  <div className="relative rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 transform transition-transform active:scale-[0.98]">
+                    <img
+                      src="/preview-historia.png"
+                      alt="Apuntes de Historia"
+                      className="w-full h-auto"
+                      loading="lazy"
+                    />
+                    <div className="absolute top-3 right-3 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                      <Check size={14} className="text-white" />
+                    </div>
+                    <div className="absolute bottom-3 left-3 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-full">
+                      <span className="text-white text-sm font-semibold">📜 Historia</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2 - Bioquímica */}
+                <div className="flex-shrink-0 w-[75vw] max-w-[300px] snap-start">
+                  <div className="relative rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 transform transition-transform active:scale-[0.98]">
+                    <img
+                      src="/preview-bioquimica.png"
+                      alt="Apuntes de Bioquímica"
+                      className="w-full h-auto"
+                      loading="lazy"
+                    />
+                    <div className="absolute top-3 right-3 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                      <Check size={14} className="text-white" />
+                    </div>
+                    <div className="absolute bottom-3 left-3 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-full">
+                      <span className="text-white text-sm font-semibold">🧬 Bioquímica</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3 - Filosofía */}
+                <div className="flex-shrink-0 w-[75vw] max-w-[300px] snap-start pr-4">
+                  <div className="relative rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 transform transition-transform active:scale-[0.98]">
+                    <img
+                      src="/preview-filosofia.png"
+                      alt="Apuntes de Filosofía"
+                      className="w-full h-auto"
+                      loading="lazy"
+                    />
+                    <div className="absolute top-3 right-3 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
+                      <Check size={14} className="text-white" />
+                    </div>
+                    <div className="absolute bottom-3 left-3 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-full">
+                      <span className="text-white text-sm font-semibold">🏛️ Filosofía</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Dot indicators */}
+              <div className="flex justify-center gap-2 mt-3">
+                <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
+                <div className="w-2 h-2 rounded-full bg-white/30"></div>
+                <div className="w-2 h-2 rounded-full bg-white/30"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* Wave Divider */}
+      <div className="absolute bottom-0 left-0 right-0">
+        <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full">
+          <path d="M0 80L60 73.3C120 66.7 240 53.3 360 46.7C480 40 600 40 720 43.3C840 46.7 960 53.3 1080 56.7C1200 60 1320 60 1380 60L1440 60V80H1380C1320 80 1200 80 1080 80C960 80 840 80 720 80C600 80 480 80 360 80C240 80 120 80 60 80H0Z" fill="#f8fafc"/>
+        </svg>
+      </div>
+    </div>
+  );
+});
 
 // =====================================================
 // COMPONENTE RESOURCECARD - Aislado para evitar bugs de closure
@@ -477,13 +830,18 @@ export default function App() {
     }
   };
 
-  const handleLogin = async () => {
+  // Memoized callbacks to prevent HeroSection re-renders
+  const handleLogin = useCallback(async () => {
     try {
       await loginWithGoogle();
     } catch (error) {
       alert("Error al iniciar sesión: " + error.message);
     }
-  };
+  }, []);
+
+  const handleToggleFavorites = useCallback(() => {
+    setShowOnlyFavorites(prev => !prev);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -1082,337 +1440,17 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Hero Section - Show Don't Tell */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
-
-        {/* Tech Grid Pattern - Subtle background texture */}
-        <div className="absolute inset-0">
-          {/* Primary grid - fine lines */}
-          <div className="absolute inset-0" style={{
-            backgroundImage: `
-              linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px)
-            `,
-            backgroundSize: '40px 40px'
-          }} />
-          {/* Secondary grid - larger squares for depth */}
-          <div className="absolute inset-0" style={{
-            backgroundImage: `
-              linear-gradient(rgba(99, 102, 241, 0.05) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(99, 102, 241, 0.05) 1px, transparent 1px)
-            `,
-            backgroundSize: '120px 120px'
-          }} />
-        </div>
-
-        {/* Spotlight - Radial gradient behind cards (right side) */}
-        <div className="absolute top-1/2 right-[15%] -translate-y-1/2 w-[600px] h-[600px] hidden lg:block"
-             style={{
-               background: 'radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0.1) 30%, transparent 70%)'
-             }} />
-
-        {/* Secondary spotlight - purple accent */}
-        <div className="absolute top-1/3 right-[25%] w-[400px] h-[400px] hidden lg:block"
-             style={{
-               background: 'radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 60%)'
-             }} />
-
-        {/* Glowing Orbs - Ambient light */}
-        <div className="absolute top-20 left-10 w-72 h-72 bg-indigo-500 rounded-full filter blur-[120px] opacity-20 animate-pulse" />
-        <div className="absolute bottom-20 right-20 w-80 h-80 bg-purple-600 rounded-full filter blur-[140px] opacity-15 animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-blue-500 rounded-full filter blur-[100px] opacity-10" />
-
-        {/* Content - Two Column Layout on Desktop */}
-        <div className="relative z-10 px-4 py-12 md:py-20">
-          <div className="max-w-7xl mx-auto">
-
-            {/* Desktop: Two Columns */}
-            <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
-
-              {/* LEFT COLUMN: Text Content */}
-              <div className="flex-1 text-center lg:text-left">
-                {/* Badge */}
-                <div className="flex justify-center lg:justify-start mb-6">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-sm text-indigo-200">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
-                    </span>
-                    {resources.length}+ recursos verificados
-                  </div>
-                </div>
-
-                {/* Main Headline */}
-                <h1 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-white mb-4 leading-tight">
-                  No regeneres.{' '}
-                  <span className="relative inline-block">
-                    <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                      Comparte.
-                    </span>
-                    <svg className="absolute -bottom-1 md:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
-                      <path d="M2 10C50 4 150 4 198 10" stroke="url(#gradient)" strokeWidth="3" strokeLinecap="round"/>
-                      <defs>
-                        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#818cf8"/>
-                          <stop offset="50%" stopColor="#a78bfa"/>
-                          <stop offset="100%" stopColor="#f472b6"/>
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  </span>
-                </h1>
-
-                {/* Subtitle */}
-                <p className="text-lg md:text-xl text-slate-300 mb-6 max-w-xl mx-auto lg:mx-0">
-                  La biblioteca de resúmenes de IA{' '}
-                  <span className="text-green-400 font-semibold">verificados por humanos</span>.
-                  Descarga apuntes que otros ya validaron por ti.
-                </p>
-
-                {/* Benefits Pills */}
-                <div className="flex flex-wrap justify-center lg:justify-start gap-2 mb-6">
-                  <span className="px-3 py-1.5 bg-white/10 border border-white/20 rounded-full text-xs text-white flex items-center gap-1.5">
-                    <Check size={12} className="text-green-400" /> Fuentes citadas
-                  </span>
-                  <span className="px-3 py-1.5 bg-white/10 border border-white/20 rounded-full text-xs text-white flex items-center gap-1.5">
-                    <Check size={12} className="text-green-400" /> Votados por la comunidad
-                  </span>
-                  <span className="hidden sm:flex px-3 py-1.5 bg-white/10 border border-white/20 rounded-full text-xs text-white items-center gap-1.5">
-                    <Check size={12} className="text-green-400" /> Ahorra horas
-                  </span>
-                </div>
-
-                {/* Search Box */}
-                <div className="relative mb-6 max-w-lg mx-auto lg:mx-0">
-                  <div className="relative group">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-300" />
-                    <div className="relative bg-slate-900 rounded-2xl">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                      <input
-                        className="w-full pl-12 pr-4 py-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl text-base text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
-                        placeholder="Buscar resúmenes verificados..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* CTA Buttons */}
-                {!user && (
-                  <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 mb-6">
-                    <button
-                      onClick={handleLogin}
-                      className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-bold text-base hover:from-indigo-500 hover:to-purple-500 transition-all duration-300 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105 flex items-center justify-center gap-2"
-                    >
-                      <User size={18} />
-                      Empezar Gratis
-                    </button>
-                    <a
-                      href="#recursos"
-                      className="w-full sm:w-auto px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-full font-semibold text-base hover:bg-white/20 transition-all duration-300 text-center"
-                    >
-                      Explorar Biblioteca
-                    </a>
-                  </div>
-                )}
-
-                {/* Favorites Filter - For logged users */}
-                {user && (
-                  <div className="flex justify-center lg:justify-start mb-6">
-                    <button
-                      onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-                      className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold transition-all duration-300 ${
-                        showOnlyFavorites
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
-                          : 'bg-white/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20'
-                      }`}
-                    >
-                      <Bookmark size={18} className={showOnlyFavorites ? 'fill-white' : ''} />
-                      Mi Biblioteca
-                      {validFavorites.length > 0 && (
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                          showOnlyFavorites ? 'bg-white/20' : 'bg-indigo-500/30 text-indigo-200'
-                        }`}>
-                          {validFavorites.length}
-                        </span>
-                      )}
-                    </button>
-                  </div>
-                )}
-
-                {/* Social Proof */}
-                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 text-slate-400 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Download size={14} className="text-indigo-400" />
-                    <span>{resources.reduce((acc, r) => acc + (r.downloads || 0), 0)}+ descargas</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Check size={14} className="text-green-400" />
-                    <span>{resources.reduce((acc, r) => acc + (r.validatedBy?.length || 0), 0)}+ validaciones</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT COLUMN: Giant Card Stack - Desktop */}
-              <div className="hidden lg:flex flex-1 relative h-[500px] items-center justify-center">
-                {/* Glow behind cards */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500 rounded-full filter blur-[100px] opacity-50" />
-
-                {/* Giant Stacked Cards - Deck Effect */}
-                <div className="relative w-[400px] h-[450px] group deck-container">
-
-                  {/* Card 1 - Historia (Back of deck) */}
-                  <div className="absolute inset-0 w-[320px] h-[400px] rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 cursor-pointer
-                                  transition-all duration-500 ease-out origin-bottom
-                                  group-hover:-translate-x-16 group-hover:-rotate-12
-                                  hover:!scale-105 hover:!z-30 hover:!rotate-0 hover:!translate-x-0"
-                       style={{
-                         transform: 'rotate(-8deg) translateX(-20px)',
-                         zIndex: 1
-                       }}>
-                    <img
-                      src="/preview-historia.png"
-                      alt="Apuntes de Historia - La Constitución de 1812"
-                      className="w-full h-full object-cover"
-                    />
-                    {/* Verified Badge */}
-                    <div className="absolute top-3 right-3 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                      <Check size={16} className="text-white" />
-                    </div>
-                    {/* Category Label */}
-                    <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full">
-                      <span className="text-white text-sm font-semibold">📜 Historia</span>
-                    </div>
-                  </div>
-
-                  {/* Card 2 - Bioquímica (Middle of deck) */}
-                  <div className="absolute inset-0 w-[320px] h-[400px] rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 cursor-pointer
-                                  transition-all duration-500 ease-out origin-bottom
-                                  group-hover:translate-x-0 group-hover:rotate-0
-                                  hover:!scale-105 hover:!z-30"
-                       style={{
-                         transform: 'rotate(0deg) translateX(20px) translateY(-10px)',
-                         zIndex: 2
-                       }}>
-                    <img
-                      src="/preview-bioquimica.png"
-                      alt="Apuntes de Bioquímica - Sistema Porta Hepático"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-3 right-3 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                      <Check size={16} className="text-white" />
-                    </div>
-                    <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full">
-                      <span className="text-white text-sm font-semibold">🧬 Bioquímica</span>
-                    </div>
-                  </div>
-
-                  {/* Card 3 - Filosofía (Front of deck) */}
-                  <div className="absolute inset-0 w-[320px] h-[400px] rounded-2xl shadow-2xl overflow-hidden border-2 border-white/30 cursor-pointer
-                                  transition-all duration-500 ease-out origin-bottom
-                                  group-hover:translate-x-16 group-hover:rotate-12
-                                  hover:!scale-105 hover:!z-30 hover:!rotate-0 hover:!translate-x-0"
-                       style={{
-                         transform: 'rotate(6deg) translateX(60px) translateY(-20px)',
-                         zIndex: 3
-                       }}>
-                    <img
-                      src="/preview-filosofia.png"
-                      alt="Apuntes de Filosofía - Crítica a la Tradición Occidental"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute top-3 right-3 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                      <Check size={16} className="text-white" />
-                    </div>
-                    <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-sm rounded-full">
-                      <span className="text-white text-sm font-semibold">🏛️ Filosofía</span>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-
-              {/* MOBILE: Horizontal Scroll Cards - Peek effect */}
-              <div className="lg:hidden w-full mt-8 relative">
-                {/* Gradient fade on right edge to hint more content */}
-                <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-slate-900 to-transparent z-10 pointer-events-none" />
-
-                {/* Cards container - padding-right smaller to show peek of next card */}
-                <div className="flex gap-4 overflow-x-auto pb-4 pl-4 pr-2 snap-x snap-mandatory scrollbar-hide">
-
-                  {/* Card 1 - Historia */}
-                  <div className="flex-shrink-0 w-[75vw] max-w-[300px] snap-start">
-                    <div className="relative rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 transform transition-transform active:scale-[0.98]">
-                      <img
-                        src="/preview-historia.png"
-                        alt="Apuntes de Historia"
-                        className="w-full h-auto"
-                      />
-                      <div className="absolute top-3 right-3 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                        <Check size={14} className="text-white" />
-                      </div>
-                      <div className="absolute bottom-3 left-3 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-full">
-                        <span className="text-white text-sm font-semibold">📜 Historia</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 2 - Bioquímica */}
-                  <div className="flex-shrink-0 w-[75vw] max-w-[300px] snap-start">
-                    <div className="relative rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 transform transition-transform active:scale-[0.98]">
-                      <img
-                        src="/preview-bioquimica.png"
-                        alt="Apuntes de Bioquímica"
-                        className="w-full h-auto"
-                      />
-                      <div className="absolute top-3 right-3 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                        <Check size={14} className="text-white" />
-                      </div>
-                      <div className="absolute bottom-3 left-3 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-full">
-                        <span className="text-white text-sm font-semibold">🧬 Bioquímica</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 3 - Filosofía */}
-                  <div className="flex-shrink-0 w-[75vw] max-w-[300px] snap-start pr-4">
-                    <div className="relative rounded-2xl shadow-2xl overflow-hidden border-2 border-white/20 transform transition-transform active:scale-[0.98]">
-                      <img
-                        src="/preview-filosofia.png"
-                        alt="Apuntes de Filosofía"
-                        className="w-full h-auto"
-                      />
-                      <div className="absolute top-3 right-3 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                        <Check size={14} className="text-white" />
-                      </div>
-                      <div className="absolute bottom-3 left-3 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-full">
-                        <span className="text-white text-sm font-semibold">🏛️ Filosofía</span>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Dot indicators */}
-                <div className="flex justify-center gap-2 mt-3">
-                  <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
-                  <div className="w-2 h-2 rounded-full bg-white/30"></div>
-                  <div className="w-2 h-2 rounded-full bg-white/30"></div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-
-        {/* Wave Divider */}
-        <div className="absolute bottom-0 left-0 right-0">
-          <svg viewBox="0 0 1440 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full">
-            <path d="M0 80L60 73.3C120 66.7 240 53.3 360 46.7C480 40 600 40 720 43.3C840 46.7 960 53.3 1080 56.7C1200 60 1320 60 1380 60L1440 60V80H1380C1320 80 1200 80 1080 80C960 80 840 80 720 80C600 80 480 80 360 80C240 80 120 80 60 80H0Z" fill="#f8fafc"/>
-          </svg>
-        </div>
-      </div>
+      {/* Hero Section - Memoized for performance */}
+      <HeroSection
+        resources={resources}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        user={user}
+        onLogin={handleLogin}
+        showOnlyFavorites={showOnlyFavorites}
+        onToggleFavorites={handleToggleFavorites}
+        validFavorites={validFavorites}
+      />
 
       {/* Category Filter Section */}
       <div id="recursos" className="bg-slate-50 pt-8 pb-4">
@@ -1522,9 +1560,9 @@ export default function App() {
       </main>
 
 
-      {/* PDF Preview Modal */}
+      {/* PDF Preview Modal - Optimized for mobile */}
       {showPreviewModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowPreviewModal(false)}>
+        <div className="fixed inset-0 bg-black/80 md:bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowPreviewModal(false)}>
           <div className="bg-white rounded-2xl max-w-4xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex justify-between items-center z-10 rounded-t-2xl">
@@ -1606,9 +1644,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Download Limit Modal */}
+      {/* Download Limit Modal - Optimized for mobile */}
       {showLimitModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/80 md:bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-8 text-center relative">
             <button
               onClick={() => setShowLimitModal(false)}
@@ -1696,9 +1734,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Upload Modal */}
+      {/* Upload Modal - Optimized: No backdrop-blur for mobile performance */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowUploadModal(false)}>
+        <div className="fixed inset-0 bg-black/70 md:bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowUploadModal(false)}>
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center rounded-t-3xl z-10">
