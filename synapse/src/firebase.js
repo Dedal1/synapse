@@ -332,3 +332,50 @@ export const incrementUserDownloadCount = async (userId) => {
     throw error;
   }
 };
+
+// ============================================
+// NEWSLETTER / MARKETING PREFERENCES
+// ============================================
+
+export const updateNewsletterPreference = async (userId, email, optIn) => {
+  console.log('🔥 [Firebase] updateNewsletterPreference called with:', { userId, email, optIn });
+
+  try {
+    const userRef = doc(db, 'users', userId);
+    console.log('📝 [Firebase] Document reference created for users/' + userId);
+
+    const dataToSave = {
+      newsletterOptIn: optIn,
+      email: email,
+      lastUpdated: serverTimestamp()
+    };
+    console.log('📦 [Firebase] Data to save:', dataToSave);
+
+    await setDoc(userRef, dataToSave, { merge: true });
+
+    console.log(`✅ [Firebase] User ${userId} newsletter preference saved: ${optIn}`);
+    return true;
+  } catch (error) {
+    console.error("❌ [Firebase] Error updating newsletter preference:", error);
+    console.error("❌ [Firebase] Error code:", error.code);
+    console.error("❌ [Firebase] Error message:", error.message);
+    throw error;
+  }
+};
+
+export const getUserNewsletterPreference = async (userId) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      return false; // Default: not opted in
+    }
+
+    const data = userSnap.data();
+    return data.newsletterOptIn || false;
+  } catch (error) {
+    console.error("Error getting newsletter preference:", error);
+    return false; // Default on error
+  }
+};

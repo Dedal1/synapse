@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Search, Upload, FileText, Download, Zap, User, X, Check, Trash2, Bookmark, BookOpen, Eye, ArrowUp, Settings, Flag, LogOut } from 'lucide-react';
-import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount } from './firebase';
+import { auth, loginWithGoogle, logout, uploadPDF, getPDFs, incrementDownloads, addValidation, removeValidation, checkDuplicateTitle, deleteResource, subscribeToFavorites, addToFavorites, removeFromFavorites, getUserDownloadCount, incrementUserDownloadCount, updateNewsletterPreference, getUserNewsletterPreference } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import * as pdfjsLib from 'pdfjs-dist';
 import CookieBanner from './CookieBanner';
@@ -598,6 +598,10 @@ export default function App() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [expandedSource, setExpandedSource] = useState(false);
   const [showCookieBanner, setShowCookieBanner] = useState(true);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
+  const [savingPreference, setSavingPreference] = useState(false);
+  const [preferenceSaved, setPreferenceSaved] = useState(false);
 
   const FREE_LIMIT = 5;
   const MAX_DOWNLOADS = 5;
@@ -650,7 +654,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // Load user data from Firestore to get isPro status
+        // Load user data from Firestore to get isPro status and newsletter preference
         try {
           const { doc, getDoc } = await import('firebase/firestore');
           const { db } = await import('./firebase');
@@ -664,12 +668,15 @@ export default function App() {
               isPro: userData.isPro || false,
               upgradedAt: userData.upgradedAt,
             });
+            // Load newsletter preference
+            setNewsletterOptIn(userData.newsletterOptIn || false);
           } else {
             // No Firestore document, use Auth user only
             setUser({
               ...currentUser,
               isPro: false,
             });
+            setNewsletterOptIn(false);
           }
         } catch (error) {
           console.error('[Auth] Error loading user data:', error);
@@ -677,9 +684,11 @@ export default function App() {
             ...currentUser,
             isPro: false,
           });
+          setNewsletterOptIn(false);
         }
       } else {
         setUser(null);
+        setNewsletterOptIn(false);
       }
       setLoading(false);
     });
@@ -846,8 +855,44 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await logout();
+      setShowProfileModal(false);
     } catch (error) {
       alert("Error al cerrar sesión: " + error.message);
+    }
+  };
+
+  // Handle newsletter toggle
+  const handleNewsletterToggle = async () => {
+    if (!user) {
+      console.error('❌ No hay usuario logueado');
+      return;
+    }
+
+    const newValue = !newsletterOptIn;
+    setSavingPreference(true);
+    setPreferenceSaved(false);
+
+    console.log('🔥 Intentando guardar en Firestore:', {
+      userId: user.uid,
+      email: user.email,
+      newsletterOptIn: newValue
+    });
+
+    try {
+      await updateNewsletterPreference(user.uid, user.email, newValue);
+      console.log('✅ Guardado con éxito en Firestore');
+      setNewsletterOptIn(newValue);
+      setPreferenceSaved(true);
+
+      // Hide "saved" message after 2 seconds
+      setTimeout(() => {
+        setPreferenceSaved(false);
+      }, 2000);
+    } catch (error) {
+      console.error('❌ Error al guardar en Firestore:', error);
+      alert('Error al guardar preferencias: ' + error.message);
+    } finally {
+      setSavingPreference(false);
     }
   };
 
@@ -1385,8 +1430,13 @@ export default function App() {
                   <span className="hidden md:inline">Comparte un hallazgo</span>
                 </button>
 
-                {/* Avatar - Touchable area */}
-                <div className="min-w-[44px] min-h-[44px] flex items-center justify-center">
+                {/* Avatar - Opens Profile Modal */}
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full
+                             hover:ring-2 hover:ring-indigo-400 hover:ring-offset-2 active:scale-95 transition-all"
+                  title="Mi perfil"
+                >
                   {user.photoURL ? (
                     <img
                       src={user.photoURL}
@@ -1398,32 +1448,6 @@ export default function App() {
                       <User size={20} className="text-indigo-600" />
                     </div>
                   )}
-                </div>
-
-                {/* Manage Subscription - Desktop only for PRO users */}
-                {(user.isPro || false) && (
-                  <button
-                    onClick={handleManageSubscription}
-                    className="hidden md:flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-semibold transition"
-                  >
-                    <Settings size={16} />
-                    Gestionar Suscripción
-                  </button>
-                )}
-
-                {/* Logout button - Larger touch area on mobile */}
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center justify-center min-w-[44px] min-h-[44px] p-3 md:p-0
-                             rounded-full md:rounded-none
-                             bg-slate-100 md:bg-transparent
-                             hover:bg-slate-200 md:hover:bg-transparent
-                             active:bg-slate-300 active:scale-95 md:active:scale-100
-                             transition-all"
-                  title="Cerrar sesión"
-                >
-                  <LogOut size={20} className="text-slate-600 md:hidden" />
-                  <span className="hidden md:block text-sm text-slate-600 hover:text-slate-900">Salir</span>
                 </button>
               </>
             ) : (
@@ -1992,6 +2016,119 @@ export default function App() {
                 </ul>
               </div>
             )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Modal - Newsletter Opt-in */}
+      {showProfileModal && user && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowProfileModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">Mi Perfil</h2>
+                <button
+                  onClick={() => setShowProfileModal(false)}
+                  className="p-1 hover:bg-white/20 rounded-full transition"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            {/* User Info */}
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-6">
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName}
+                    className="w-16 h-16 rounded-full border-4 border-indigo-100"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center">
+                    <User size={32} className="text-indigo-600" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900">{user.displayName || 'Usuario'}</h3>
+                  <p className="text-sm text-slate-500">{user.email}</p>
+                  {user.isPro && (
+                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold rounded-full">
+                      <Zap size={12} /> PRO
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Newsletter Toggle */}
+              <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">🔔</span>
+                      <span className="font-semibold text-slate-900">Newsletter</span>
+                    </div>
+                    <p className="text-sm text-slate-600">
+                      Recibir avisos de nuevos apuntes y recursos clave.
+                    </p>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <button
+                    onClick={handleNewsletterToggle}
+                    disabled={savingPreference}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
+                      newsletterOptIn ? 'bg-indigo-600' : 'bg-slate-300'
+                    } ${savingPreference ? 'opacity-50 cursor-wait' : 'cursor-pointer'}`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ease-in-out ${
+                        newsletterOptIn ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Saved feedback */}
+                {preferenceSaved && (
+                  <div className="mt-3 flex items-center gap-2 text-green-600 text-sm font-medium animate-fade-in">
+                    <Check size={16} />
+                    Preferencias guardadas
+                  </div>
+                )}
+              </div>
+
+              {/* PRO Subscription Management */}
+              {user.isPro && (
+                <button
+                  onClick={() => {
+                    setShowProfileModal(false);
+                    handleManageSubscription();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold transition mb-4"
+                >
+                  <Settings size={18} />
+                  Gestionar Suscripción PRO
+                </button>
+              )}
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 border-2 border-slate-200 hover:border-red-300 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl font-semibold transition"
+              >
+                <LogOut size={18} />
+                Cerrar Sesión
+              </button>
             </div>
           </div>
         </div>
